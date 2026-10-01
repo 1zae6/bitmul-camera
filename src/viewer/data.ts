@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { CONFIG } from '../shared/config'
 import { sb } from '../shared/supabase'
-import type { GradeRow, PhotoRow } from '../shared/types'
+import type { AiGradeRow, AiRunRow, GradeRow, PhotoRow } from '../shared/types'
 
 export function errorText(err: unknown): string {
   const msg =
@@ -48,6 +48,35 @@ export function useData() {
 
   return { photos, setPhotos, grades, setGrades, loading, error, reload }
 }
+
+/** AI 채점 기록. AI 채점 탭과 사진 상세가 함께 쓴다 */
+export function useAiData() {
+  const [runs, setRuns] = useState<AiRunRow[]>([])
+  const [aiRows, setAiRows] = useState<AiGradeRow[]>([])
+  const [error, setError] = useState('')
+
+  const reload = useCallback(async () => {
+    const [r, g] = await Promise.all([
+      sb().from('ai_runs').select('*').order('created_at', { ascending: false }),
+      sb().from('ai_grades').select('*'),
+    ])
+    if (r.error || g.error) {
+      setError(errorText(r.error ?? g.error))
+      return
+    }
+    setError('')
+    setRuns((r.data ?? []) as AiRunRow[])
+    setAiRows((g.data ?? []) as AiGradeRow[])
+  }, [])
+
+  useEffect(() => {
+    void reload()
+  }, [reload])
+
+  return { runs, setRuns, aiRows, setAiRows, error, reload }
+}
+
+export type AiData = ReturnType<typeof useAiData>
 
 // 사진 저장소는 비공개라 잠깐만 열리는 주소(서명 URL)를 받아서 보여 준다
 const urlCache = new Map<string, { url: string; until: number }>()

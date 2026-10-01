@@ -125,7 +125,7 @@ export function AgreementView({ photos, grades, onSelect }: Props) {
             <Stat label="완전 일치" value={`${stats.agree}장 (${pct(stats.agree, stats.n)})`} />
             <Stat label="±1 등급 이내" value={pct(stats.within1, stats.numeric)} hint="판단 불가 제외" />
             <Stat label="코언 카파" value={stats.kappa === null ? '-' : stats.kappa.toFixed(2)} hint="우연히 맞을 확률을 뺀 일치도" />
-            <Stat label="정답지" value={`${answerKey.length} / ${CONFIG.goal}장`} hint="두 사람이 같고 판단 가능한 사진" />
+            <Stat label="정답지" value={`${answerKey.length} / ${CONFIG.answerKeyGoal}장`} hint="두 사람이 같고 판단 가능한 사진 (기획안 목표)" />
           </section>
 
           <ConfusionTable matrix={stats.matrix} rowLabel={A} colLabel={B} />

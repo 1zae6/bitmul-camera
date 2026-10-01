@@ -1,7 +1,7 @@
 import { expandBox } from '../shared/box'
 import { CONFIG } from '../shared/config'
 import { GRADE_RULES, GRADES, UNUSABLE } from '../shared/grades'
-import { rowBox, type PhotoRow } from '../shared/types'
+import { rowBox, type AiGradeRow, type PhotoRow } from '../shared/types'
 
 // Gemini API 로 사진의 막힘 등급을 매긴다.
 // API 키는 공개 사이트 코드에 넣지 않고, PC 뷰어에서 입력받아 그 브라우저에만 저장한다.
@@ -189,6 +189,23 @@ function geminiErrorText(status: number, msg: string): string {
   if (status === 429) return '무료 한도에 걸렸습니다. 요청 간격을 늘리거나, 오늘 한도가 끝났다면 내일 다시 시도해 주세요.'
   if (status >= 500) return `Gemini 서버 오류입니다 (${status}). 잠시 뒤 다시 시도해 주세요.`
   return `Gemini 오류 (${status}): ${msg}`
+}
+
+/** 저장된 AI 판정을 Gemini 가 답한 JSON 모양 그대로 다시 보여 준다 (값은 저장 전에 범위를 정리한 것) */
+export function answerJson(r: AiGradeRow): string {
+  return JSON.stringify(
+    {
+      is_drain: r.is_drain,
+      unusable: r.unusable,
+      covered_percent: r.covered_percent,
+      grade: r.grade,
+      confidence: r.confidence,
+      causes: r.causes,
+      reason: r.reason,
+    },
+    null,
+    2,
+  )
 }
 
 /** 모델이 형식을 조금 벗어나도 저장할 수 있게 값을 정리한다 */

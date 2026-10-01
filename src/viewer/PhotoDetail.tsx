@@ -3,18 +3,32 @@ import { AnnotatedImage } from '../shared/AnnotatedImage'
 import { CONFIG } from '../shared/config'
 import { gradeText } from '../shared/grades'
 import { sb } from '../shared/supabase'
-import { CAPTURE_MODE_LABEL, PHASE_LABEL, PHASES, rowBox, type GradeRow, type Phase, type PhotoRow } from '../shared/types'
+import {
+  CAPTURE_MODE_LABEL,
+  PHASE_LABEL,
+  PHASES,
+  rowBox,
+  type AiGradeRow,
+  type AiRunRow,
+  type GradeRow,
+  type Phase,
+  type PhotoRow,
+} from '../shared/types'
 import { downloadBlob, errorText, useSignedUrls } from './data'
+import { answerJson } from './gemini'
 
 type Props = {
   photo: PhotoRow
   myGrade: GradeRow | undefined
+  /** 이 사진에 대한 AI 판정들 */
+  aiRows: AiGradeRow[]
+  runs: AiRunRow[]
   onClose: () => void
   onUpdated: (p: PhotoRow) => void
   onDeleted: (id: string) => void
 }
 
-export function PhotoDetail({ photo, myGrade, onClose, onUpdated, onDeleted }: Props) {
+export function PhotoDetail({ photo, myGrade, aiRows, runs, onClose, onUpdated, onDeleted }: Props) {
   const urls = useSignedUrls([photo.storage_path, photo.thumb_path])
   const src = urls[photo.storage_path] ?? urls[photo.thumb_path]
   const [code, setCode] = useState(photo.drain_code)
@@ -23,6 +37,7 @@ export function PhotoDetail({ photo, myGrade, onClose, onUpdated, onDeleted }: P
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [showAi, setShowAi] = useState(false)
 
   const patch = { drain_code: code.trim().toUpperCase(), phase, memo: memo.trim() || null }
   const dirty = patch.drain_code !== photo.drain_code || patch.phase !== photo.phase || patch.memo !== photo.memo
@@ -119,6 +134,32 @@ export function PhotoDetail({ photo, myGrade, onClose, onUpdated, onDeleted }: P
         <dt className="text-gray-700">내 등급</dt>
         <dd>{myGrade ? gradeText(myGrade.grade, myGrade.unusable) : '안 매김'}</dd>
       </dl>
+
+      <section className="rounded-lg border border-gray-200 p-3">
+        <button onClick={() => setShowAi((s) => !s)} className="flex w-full items-center justify-between font-semibold text-gray-900">
+          <span>AI 답 {aiRows.length}개</span>
+          <span className="font-medium text-blue-700">{showAi ? '접기' : '보기'}</span>
+        </button>
+        {!showAi && <p className="mt-1 text-gray-700">직접 등급을 매기기 전에는 열지 않는 게 좋습니다.</p>}
+        {showAi &&
+          (aiRows.length === 0 ? (
+            <p className="mt-1 text-gray-700">아직 AI가 매기지 않았습니다.</p>
+          ) : (
+            aiRows.map((r) => (
+              <div key={r.run_id} className="mt-2 space-y-1 border-t border-gray-200 pt-2">
+                <p className="text-gray-700">{runs.find((x) => x.run_id === r.run_id)?.label ?? r.run_id}</p>
+                <p className="font-semibold text-gray-900">
+                  AI {gradeText(r.grade, r.unusable)} · 가려짐 {r.covered_percent ?? '-'}% · 확신도 {r.confidence?.toFixed(2) ?? '-'}
+                </p>
+                {r.reason && <p className="text-gray-800">{r.reason}</p>}
+                <details>
+                  <summary className="cursor-pointer text-gray-700">JSON 보기</summary>
+                  <pre className="mt-1 overflow-x-auto rounded bg-gray-50 p-2 text-xs text-gray-900">{answerJson(r)}</pre>
+                </details>
+              </div>
+            ))
+          ))}
+      </section>
 
       <section className="space-y-2 rounded-lg border border-gray-200 p-3">
         <p className="font-semibold text-gray-900">정보 고치기</p>

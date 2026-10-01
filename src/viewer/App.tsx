@@ -5,7 +5,7 @@ import { LoginScreen } from '../shared/LoginScreen'
 import type { GradeRow } from '../shared/types'
 import { AgreementView } from './AgreementView'
 import { AiView } from './AiView'
-import { useData } from './data'
+import { useAiData, useData } from './data'
 import { GradeView } from './GradeView'
 import { MapView } from './MapView'
 import { PhotoDetail } from './PhotoDetail'
@@ -37,6 +37,7 @@ const TABS: { id: Tab; label: string }[] = [
 
 function Viewer({ name }: { name: string }) {
   const data = useData()
+  const ai = useAiData()
   const [tab, setTab] = useState<Tab>('list')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [showTest, setShowTest] = useState(false)
@@ -58,11 +59,14 @@ function Viewer({ name }: { name: string }) {
       <header className="flex h-12 shrink-0 items-center gap-4 border-b border-gray-200 px-4">
         <h1 className="text-base font-bold">빗물받이 사진 뷰어</h1>
         <span className="text-gray-700">
-          정답지용 {real.length}장 / 목표 {CONFIG.goal}장 · 연습용 {data.photos.length - real.length}장
+          모은 사진 {real.length}장 / 목표 {CONFIG.goal}장 · 연습용 {data.photos.length - real.length}장
         </span>
         <div className="ml-auto flex items-center gap-2">
           <span className="text-gray-700">채점자 {name}</span>
-          <button onClick={() => void data.reload()} className="h-8 rounded-md border border-gray-300 px-3 font-medium">
+          <button
+            onClick={() => void Promise.all([data.reload(), ai.reload()])}
+            className="h-8 rounded-md border border-gray-300 px-3 font-medium"
+          >
             {data.loading ? '불러오는 중…' : '새로고침'}
           </button>
           <button onClick={() => void logout()} className="h-8 rounded-md px-3 font-medium text-gray-800 hover:bg-gray-100">
@@ -100,7 +104,7 @@ function Viewer({ name }: { name: string }) {
           {tab === 'map' && <MapView photos={visible} selectedId={selectedId} onSelect={setSelectedId} />}
           {tab === 'grade' && <GradeView photos={real} grades={data.grades} name={name} onGraded={upsertGrade} />}
           {tab === 'agree' && <AgreementView photos={real} grades={data.grades} onSelect={setSelectedId} />}
-          {tab === 'ai' && <AiView photos={data.photos} grades={data.grades} name={name} onSelect={setSelectedId} />}
+          {tab === 'ai' && <AiView photos={data.photos} grades={data.grades} name={name} onSelect={setSelectedId} ai={ai} />}
         </main>
 
         {selected && tab !== 'grade' && (
@@ -109,9 +113,12 @@ function Viewer({ name }: { name: string }) {
               key={selected.id}
               photo={selected}
               myGrade={myGrades.get(selected.id)}
+              aiRows={ai.aiRows.filter((r) => r.photo_id === selected.id)}
+              runs={ai.runs}
               onClose={() => setSelectedId(null)}
               onUpdated={(p) => data.setPhotos((ps) => ps.map((x) => (x.id === p.id ? p : x)))}
               onDeleted={(id) => {
+                ai.setAiRows((rows) => rows.filter((r) => r.photo_id !== id))
                 data.setPhotos((ps) => ps.filter((x) => x.id !== id))
                 data.setGrades((gs) => gs.filter((g) => g.photo_id !== id))
                 setSelectedId(null)

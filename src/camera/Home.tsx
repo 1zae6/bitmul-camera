@@ -60,7 +60,7 @@ export function Home({ name, counts, queue, onStart }: Props) {
         </div>
 
         <section className="rounded-xl border border-gray-200 p-4">
-          <p className="text-[15px] font-semibold text-gray-800">정답지용 사진</p>
+          <p className="text-[15px] font-semibold text-gray-800">모은 사진</p>
           <p className="mt-1 text-[28px] font-bold text-gray-900">
             {counts.total ?? '-'}
             <span className="text-[17px] font-semibold text-gray-700"> / {CONFIG.goal}장</span>

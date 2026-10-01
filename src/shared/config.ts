@@ -41,8 +41,10 @@ export const CONFIG = {
   },
   /** 이보다 오래된 위치는 쓰지 않는다 */
   gpsMaxAgeMs: 30_000,
-  /** 정답지 목표 장수 */
-  goal: 100,
+  /** 모을 사진 목표(연습용 제외). 판단 불가·의견 불일치로 빠질 사진을 생각해 넉넉히 잡는다 */
+  goal: 200,
+  /** 정답지(두 사람이 같은 등급을 준, 판단 가능한 사진) 목표. 기획안 기준 */
+  answerKeyGoal: 100,
   /** Supabase 저장소 버킷 이름 (supabase/schema.sql 과 같아야 한다) */
   bucket: 'drain-photos',
   /** 빗물받이 번호 앞부분 기본값 (역곡동 = YG) */
