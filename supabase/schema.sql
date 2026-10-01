@@ -78,3 +78,46 @@ create policy "team update drain photos" on storage.objects
 drop policy if exists "team delete drain photos" on storage.objects;
 create policy "team delete drain photos" on storage.objects
   for delete to authenticated using (bucket_id = 'drain-photos');
+
+-- 5. AI 채점 결과 (PC 뷰어의 AI 채점 탭). 실행 1회마다 ai_runs 1줄, 사진마다 ai_grades 1줄
+create table if not exists public.ai_runs (
+  run_id text primary key,
+  label text not null,
+  model text not null,
+  mode text not null check (mode in ('zero', 'few')),
+  prompt_version text not null,
+  example_ids uuid[] not null default '{}',
+  created_by text not null,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.ai_grades (
+  run_id text not null references public.ai_runs (run_id) on delete cascade,
+  photo_id uuid not null references public.photos (id) on delete cascade,
+  grade smallint check (grade between 0 and 4),
+  unusable boolean not null default false,
+  is_drain boolean,
+  covered_percent smallint,
+  confidence real,
+  causes text[],
+  reason text,
+  latency_ms integer,
+  created_at timestamptz not null default now(),
+  primary key (run_id, photo_id)
+);
+
+alter table public.ai_runs enable row level security;
+alter table public.ai_grades enable row level security;
+
+drop policy if exists "team access ai runs" on public.ai_runs;
+create policy "team access ai runs" on public.ai_runs
+  for all to authenticated using (true) with check (true);
+
+drop policy if exists "team access ai grades" on public.ai_grades;
+create policy "team access ai grades" on public.ai_grades
+  for all to authenticated using (true) with check (true);
+
+grant select, insert, update, delete on public.ai_runs to authenticated;
+grant select, insert, update, delete on public.ai_grades to authenticated;
+revoke all on public.ai_runs from anon;
+revoke all on public.ai_grades from anon;

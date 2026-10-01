@@ -73,6 +73,13 @@ function cachedUrl(path: string): string | undefined {
   return c && c.until > Date.now() ? c.url : undefined
 }
 
+export async function getSignedUrl(path: string): Promise<string> {
+  await signUrls([path])
+  const url = cachedUrl(path)
+  if (!url) throw new Error('사진 주소를 받지 못했습니다')
+  return url
+}
+
 export function useSignedUrls(paths: string[]): Record<string, string> {
   const key = paths.join('|')
   const [map, setMap] = useState<Record<string, string>>({})

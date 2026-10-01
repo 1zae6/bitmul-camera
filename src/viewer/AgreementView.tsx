@@ -3,6 +3,8 @@ import { CONFIG } from '../shared/config'
 import { gradeText } from '../shared/grades'
 import { PHASE_LABEL, type GradeRow, type PhotoRow } from '../shared/types'
 import { downloadCsv, today, toCsv, useSignedUrls } from './data'
+import { catOf, compare, pct } from './metrics'
+import { ConfusionTable, Stat } from './ui'
 
 type Props = {
   /** 연습용을 뺀 사진 */
@@ -10,9 +12,6 @@ type Props = {
   grades: GradeRow[]
   onSelect: (id: string) => void
 }
-
-const CATS = ['0', '1', '2', '3', '4', 'X'] as const
-const cat = (g: GradeRow) => (g.unusable ? 'X' : String(g.grade))
 
 type Pair = { p: PhotoRow; a: GradeRow; b: GradeRow }
 
@@ -44,9 +43,13 @@ export function AgreementView({ photos, grades, onSelect }: Props) {
     return out
   }, [photos, byPhoto, A, B])
 
-  const stats = useMemo(() => summarize(pairs), [pairs])
-  const disagreements = pairs.filter((x) => cat(x.a) !== cat(x.b))
-  const answerKey = pairs.filter((x) => cat(x.a) === cat(x.b) && !x.a.unusable)
+  const stats = useMemo(
+    () => compare(pairs.map(({ a, b }) => ({ a: catOf(a.grade, a.unusable), b: catOf(b.grade, b.unusable) }))),
+    [pairs],
+  )
+  const same = (x: Pair) => catOf(x.a.grade, x.a.unusable) === catOf(x.b.grade, x.b.unusable)
+  const disagreements = pairs.filter((x) => !same(x))
+  const answerKey = pairs.filter((x) => same(x) && !x.a.unusable)
   const urls = useSignedUrls(disagreements.slice(0, 60).map((x) => x.p.thumb_path))
 
   const exportAnswerKey = () => {
@@ -118,42 +121,14 @@ export function AgreementView({ photos, grades, onSelect }: Props) {
       ) : (
         <>
           <section className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-            <Stat label="둘 다 매긴 사진" value={`${pairs.length}장`} />
-            <Stat label="완전 일치" value={`${stats.agree}장 (${pct(stats.agree, pairs.length)})`} />
-            <Stat label="±1 등급 이내" value={stats.numeric ? pct(stats.within1, stats.numeric) : '-'} hint="판단 불가 제외" />
+            <Stat label="둘 다 매긴 사진" value={`${stats.n}장`} />
+            <Stat label="완전 일치" value={`${stats.agree}장 (${pct(stats.agree, stats.n)})`} />
+            <Stat label="±1 등급 이내" value={pct(stats.within1, stats.numeric)} hint="판단 불가 제외" />
             <Stat label="코언 카파" value={stats.kappa === null ? '-' : stats.kappa.toFixed(2)} hint="우연히 맞을 확률을 뺀 일치도" />
             <Stat label="정답지" value={`${answerKey.length} / ${CONFIG.goal}장`} hint="두 사람이 같고 판단 가능한 사진" />
           </section>
 
-          <section>
-            <p className="mb-1 font-semibold text-gray-900">
-              등급 맞대기 (세로 {A}, 가로 {B})
-            </p>
-            <table className="border-collapse text-center">
-              <thead>
-                <tr>
-                  <th className="border border-gray-300 bg-gray-50 px-3 py-1.5" />
-                  {CATS.map((c) => (
-                    <th key={c} className="border border-gray-300 bg-gray-50 px-3 py-1.5">
-                      {c}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {CATS.map((ra, i) => (
-                  <tr key={ra}>
-                    <th className="border border-gray-300 bg-gray-50 px-3 py-1.5">{ra}</th>
-                    {CATS.map((cb, j) => (
-                      <td key={cb} className={`border border-gray-300 px-3 py-1.5 ${i === j ? 'bg-green-50 font-semibold' : ''}`}>
-                        {stats.matrix[i][j] || ''}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
+          <ConfusionTable matrix={stats.matrix} rowLabel={A} colLabel={B} />
 
           <section>
             <p className="mb-1 font-semibold text-gray-900">등급이 다른 사진 {disagreements.length}장</p>
@@ -199,47 +174,4 @@ function GraderSelect({ value, options, onChange }: { value: string; options: st
       ))}
     </select>
   )
-}
-
-function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
-  return (
-    <div className="rounded-lg border border-gray-200 p-3">
-      <p className="text-gray-700">{label}</p>
-      <p className="mt-0.5 text-lg font-bold text-gray-900">{value}</p>
-      {hint && <p className="text-xs text-gray-700">{hint}</p>}
-    </div>
-  )
-}
-
-function pct(n: number, d: number) {
-  return d ? `${Math.round((n / d) * 100)}%` : '-'
-}
-
-function summarize(pairs: Pair[]) {
-  const matrix = CATS.map(() => CATS.map(() => 0))
-  let agree = 0
-  let within1 = 0
-  let numeric = 0
-  const countA: Record<string, number> = {}
-  const countB: Record<string, number> = {}
-  for (const { a, b } of pairs) {
-    const ca = cat(a)
-    const cb = cat(b)
-    matrix[CATS.indexOf(ca as (typeof CATS)[number])][CATS.indexOf(cb as (typeof CATS)[number])]++
-    countA[ca] = (countA[ca] ?? 0) + 1
-    countB[cb] = (countB[cb] ?? 0) + 1
-    if (ca === cb) agree++
-    if (!a.unusable && !b.unusable && a.grade !== null && b.grade !== null) {
-      numeric++
-      if (Math.abs(a.grade - b.grade) <= 1) within1++
-    }
-  }
-  const n = pairs.length
-  let kappa: number | null = null
-  if (n) {
-    const po = agree / n
-    const pe = CATS.reduce((s, c) => s + ((countA[c] ?? 0) / n) * ((countB[c] ?? 0) / n), 0)
-    kappa = pe >= 1 ? 1 : (po - pe) / (1 - pe)
-  }
-  return { matrix, agree, within1, numeric, kappa }
 }

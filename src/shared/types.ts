@@ -60,6 +60,36 @@ export type GradeRow = {
   updated_at?: string
 }
 
+/** zero = 등급 기준 문장만, few = 등급별 예시 사진도 함께 보냄 */
+export type AiMode = 'zero' | 'few'
+
+/** public.ai_runs: AI 채점을 한 번 돌린 기록 */
+export type AiRunRow = {
+  run_id: string
+  label: string
+  model: string
+  mode: AiMode
+  prompt_version: string
+  example_ids: string[]
+  created_by: string
+  created_at?: string
+}
+
+/** public.ai_grades: 실행 1회 × 사진 1장의 AI 판정. 판단 불가면 grade 는 null */
+export type AiGradeRow = {
+  run_id: string
+  photo_id: string
+  grade: number | null
+  unusable: boolean
+  is_drain: boolean | null
+  covered_percent: number | null
+  confidence: number | null
+  causes: string[] | null
+  reason: string | null
+  latency_ms: number | null
+  created_at?: string
+}
+
 export function rowBox(p: Pick<PhotoRow, 'box_x' | 'box_y' | 'box_w' | 'box_h'>): Box {
   return { x: p.box_x, y: p.box_y, w: p.box_w, h: p.box_h }
 }

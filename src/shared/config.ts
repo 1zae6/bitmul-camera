@@ -49,4 +49,25 @@ export const CONFIG = {
   drainCodePrefix: 'YG-',
   /** 사진 보기용 임시 주소 유효 시간(초) */
   signedUrlSeconds: 3600,
+  /** PC 뷰어의 AI 채점 (Gemini). 모델 이름은 Gemini API 문서 기준(2026-10 확인) */
+  ai: {
+    models: [
+      { id: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash-Lite (빠름·저렴)' },
+      { id: 'gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash-Lite' },
+      { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash' },
+      { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash (가장 똑똑함)' },
+    ],
+    /** AI에 보내는 사진(빨간 박스 + 주변 범위만 잘라 냄)의 긴 변 */
+    imageLongEdge: 768,
+    /** 무료 한도에 걸리지 않도록 요청 사이에 쉬는 시간(초) */
+    intervalSec: 5,
+    /** 한도(429)에 걸렸을 때 다시 시도하는 횟수 */
+    maxRetries: 3,
+    /** 확신도가 이보다 낮으면 사람이 다시 봐야 하는 사진으로 센다 */
+    reviewConfidence: 0.7,
+    /** 기획안의 AI 판정 일치율 목표 */
+    goalAgreement: 0.8,
+    keyPageUrl: 'https://aistudio.google.com/app/apikey',
+    rateLimitUrl: 'https://aistudio.google.com/rate-limit',
+  },
 } as const

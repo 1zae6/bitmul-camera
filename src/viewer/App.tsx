@@ -4,6 +4,7 @@ import { CONFIG } from '../shared/config'
 import { LoginScreen } from '../shared/LoginScreen'
 import type { GradeRow } from '../shared/types'
 import { AgreementView } from './AgreementView'
+import { AiView } from './AiView'
 import { useData } from './data'
 import { GradeView } from './GradeView'
 import { MapView } from './MapView'
@@ -25,12 +26,13 @@ export function App() {
   return <Viewer name={auth.name} />
 }
 
-type Tab = 'list' | 'map' | 'grade' | 'agree'
+type Tab = 'list' | 'map' | 'grade' | 'agree' | 'ai'
 const TABS: { id: Tab; label: string }[] = [
   { id: 'list', label: '사진 목록' },
   { id: 'map', label: '지도' },
   { id: 'grade', label: '등급 매기기' },
   { id: 'agree', label: '일치율 · 정답지' },
+  { id: 'ai', label: 'AI 채점 (Gemini)' },
 ]
 
 function Viewer({ name }: { name: string }) {
@@ -98,6 +100,7 @@ function Viewer({ name }: { name: string }) {
           {tab === 'map' && <MapView photos={visible} selectedId={selectedId} onSelect={setSelectedId} />}
           {tab === 'grade' && <GradeView photos={real} grades={data.grades} name={name} onGraded={upsertGrade} />}
           {tab === 'agree' && <AgreementView photos={real} grades={data.grades} onSelect={setSelectedId} />}
+          {tab === 'ai' && <AiView photos={data.photos} grades={data.grades} name={name} onSelect={setSelectedId} />}
         </main>
 
         {selected && tab !== 'grade' && (
