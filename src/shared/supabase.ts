@@ -1,7 +1,8 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
-const url = import.meta.env.VITE_SUPABASE_URL
-const key = import.meta.env.VITE_SUPABASE_ANON_KEY
+// API 화면에서 REST 주소(…/rest/v1/)를 복사해 넣어도 동작하도록 기본 주소만 남긴다
+const url = import.meta.env.VITE_SUPABASE_URL?.trim().replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '')
+const key = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim()
 
 /** 팀 공용 계정 이메일. 비밀번호는 코드에 두지 않고 로그인 화면에서만 입력받는다 */
 export const TEAM_EMAIL = import.meta.env.VITE_TEAM_EMAIL ?? ''
