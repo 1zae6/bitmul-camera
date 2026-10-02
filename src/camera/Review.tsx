@@ -2,10 +2,8 @@ import { useState } from 'react'
 import { AnnotatedImage } from '../shared/AnnotatedImage'
 import { CONFIG } from '../shared/config'
 import { GRADE_RULES, GRADES, REPORT, UNUSABLE } from '../shared/grades'
-import { CAPTURE_MODE_LABEL, PHASE_LABEL, type Box, type CaptureMode, type GradeInput, type Phase } from '../shared/types'
+import { CAPTURE_MODE_LABEL, PHASES, type Box, type CaptureMode, type GradeInput, type Phase } from '../shared/types'
 import type { Fix } from './geo'
-import { nextDrainCode } from './prefs'
-import { fmtTime, SameDrainPicker, useMyDrains, type SameItem } from './SameDrain'
 
 export type Shot = {
   canvas: HTMLCanvasElement
@@ -30,16 +28,16 @@ type Props = {
   saving: boolean
   onRetake: () => void
   onSave: (r: ReviewResult) => void
-  /** 찍는 사람 이름. 빗물받이 번호(이름-순번)와 '같은 빗물받이' 목록에 쓴다 */
+  /** 찍는 사람 이름. 빗물받이 번호 예시에 쓴다 */
   name: string
 }
 
+/** 빗물받이 번호는 찍는 사람이 '이름-번호'로 직접 적는다 (예: 한재욱-1). 같은 빗물받이를 다시 찍으면 같은 번호를 적는다 */
+const CODE_PATTERN = /^S+-d+$/
+
 export function Review({ shot, locationText, saving, onRetake, onSave, name }: Props) {
   const [box, setBox] = useState<Box>({ ...CONFIG.guide })
-  // 기본은 새 빗물받이(번호는 앱이 붙임). 같은 빗물받이를 다시 찍었을 때만 내 사진에서 고른다
-  const drains = useMyDrains(name)
-  const [same, setSame] = useState<SameItem | null>(null)
-  const [picking, setPicking] = useState(false)
+  const [code, setCode] = useState('')
   const [phase, setPhase] = useState<Phase>('before')
   const [memo, setMemo] = useState('')
   const [isTest, setIsTest] = useState(shot.mode === 'demo')
@@ -59,9 +57,12 @@ export function Review({ shot, locationText, saving, onRetake, onSave, name }: P
           : ''
 
   const submit = () => {
+    // 하이픈 앞뒤 공백은 지우고, 영문은 대문자로 맞춰 같은 번호가 다르게 저장되지 않게 한다
+    const c = code.trim().replace(/s*-s*/g, '-').toUpperCase()
     if (pick === null) return setError('내 등급을 골라 주세요.')
+    if (!c) return setError(`빗물받이 번호를 적어 주세요. 예: ${name}-1`)
+    if (!CODE_PATTERN.test(c)) return setError(`'이름-번호' 모양으로 적어 주세요. 예: ${name}-1`)
     setError('')
-    const c = same ? same.code : nextDrainCode(name, drains.codes)
     const mine: GradeInput =
       pick === 'X' ? { grade: null, unusable: true, needs_report: report } : { grade: pick, unusable: false, needs_report: report }
     onSave({ box, code: c, phase, memo: memo.trim(), isTest, mine })
@@ -137,50 +138,36 @@ export function Review({ shot, locationText, saving, onRetake, onSave, name }: P
           <p className="mt-1 text-[14px] text-gray-700">현장에서 본 것이 아니라 사진에 보이는 것만 보고 매겨 주세요.</p>
         </div>
 
-        {same ? (
-          <div className="space-y-2 rounded-lg border border-blue-600 bg-blue-50 p-3">
-            <div className="flex items-center gap-3">
-              {same.thumb && <img src={same.thumb} alt="" className="h-16 w-16 shrink-0 rounded object-cover" />}
-              <div className="min-w-0 flex-1">
-                <p className="text-[15px] font-semibold text-gray-900">같은 빗물받이를 다시 찍음</p>
-                <p className="text-[14px] text-gray-700">
-                  지난번 {fmtTime(same.takenAt)} · {PHASE_LABEL[same.phase]}
-                </p>
-              </div>
+        <div>
+          <label className="text-[15px] font-semibold text-gray-900" htmlFor="drain-code">
+            빗물받이 번호 (필수)
+          </label>
+          <input
+            id="drain-code"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            autoComplete="off"
+            maxLength={30}
+            placeholder={`예: ${name}-1`}
+            className="mt-1 h-12 w-full rounded-lg border border-gray-300 px-3 text-[17px] font-semibold text-gray-900"
+          />
+          <p className="mt-1 text-[14px] text-gray-700">같은 빗물받이를 다시 찍으면 같은 번호를 적어 주세요.</p>
+        </div>
+
+        <div>
+          <p className="text-[15px] font-semibold text-gray-900">단계</p>
+          <div className="mt-1 grid grid-cols-3 gap-2">
+            {PHASES.map((p) => (
               <button
-                onClick={() => {
-                  setSame(null)
-                  setPhase('before')
-                }}
-                className="min-h-11 shrink-0 px-2 text-[14px] font-semibold text-blue-700"
+                key={p.value}
+                onClick={() => setPhase(p.value)}
+                className={`h-12 rounded-lg border text-[16px] font-semibold ${phase === p.value ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-300 text-gray-800'}`}
               >
-                취소
+                {p.label}
               </button>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              {(['revisit', 'after'] as const).map((p) => (
-                <button
-                  key={p}
-                  onClick={() => setPhase(p)}
-                  className={`h-12 rounded-lg border text-[16px] font-semibold ${phase === p ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-300 bg-white text-gray-800'}`}
-                >
-                  {p === 'revisit' ? '재방문 (시간대 비교 등)' : PHASE_LABEL[p]}
-                </button>
-              ))}
-            </div>
+            ))}
           </div>
-        ) : (
-          <button
-            onClick={() => setPicking(true)}
-            className="flex min-h-12 w-full items-center justify-between gap-2 rounded-lg border border-gray-300 px-3 py-2 text-left"
-          >
-            <span>
-              <span className="block text-[15px] font-semibold text-gray-900">같은 빗물받이 다시 찍기</span>
-              <span className="block text-[14px] text-gray-700">안 누르면 새 빗물받이로 저장됩니다</span>
-            </span>
-            <span className="text-[15px] font-semibold text-blue-700">고르기</span>
-          </button>
-        )}
+        </div>
 
         <input
           value={memo}
@@ -214,17 +201,6 @@ export function Review({ shot, locationText, saving, onRetake, onSave, name }: P
         </button>
       </div>
 
-      {picking && (
-        <SameDrainPicker
-          drains={drains}
-          onClose={() => setPicking(false)}
-          onPick={(it) => {
-            setSame(it)
-            setPhase('revisit')
-            setPicking(false)
-          }}
-        />
-      )}
     </div>
   )
 }
