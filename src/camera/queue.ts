@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import { CONFIG } from '../shared/config'
 import { sb } from '../shared/supabase'
-import type { PhotoRow } from '../shared/types'
+import type { GradeInput, PhotoRow } from '../shared/types'
 
 // 찍은 사진은 먼저 폰 안(IndexedDB)에 넣고, 올리기에 성공하면 지운다. 인터넷이 끊겨도 사진을 잃지 않는다.
 
 export type PendingRow = Omit<PhotoRow, 'storage_path' | 'thumb_path' | 'created_at'>
-export type Pending = { id: string; photo: Blob; thumb: Blob; row: PendingRow; addedAt: number; error?: string }
+/** grade: 찍은 사람이 현장에서 매긴 1차 등급 (예전 버전에서 쌓인 사진에는 없다) */
+export type Pending = { id: string; photo: Blob; thumb: Blob; row: PendingRow; addedAt: number; error?: string; grade?: GradeInput }
 
 const DB_NAME = 'bitmul-camera'
 const STORE = 'pending'
@@ -72,6 +73,12 @@ async function uploadOne(p: Pending) {
     .from('photos')
     .upsert({ ...p.row, id: p.id, storage_path: path, thumb_path: thumbPath })
   if (error) throw error
+  if (p.grade) {
+    const g = await sb()
+      .from('grades')
+      .upsert({ photo_id: p.id, grader: p.row.photographer, ...p.grade, updated_at: new Date().toISOString() }, { onConflict: 'photo_id,grader' })
+    if (g.error) throw g.error
+  }
 }
 
 export function uploadErrorText(err: unknown): string {

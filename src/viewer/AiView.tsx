@@ -4,8 +4,8 @@ import { gradeText } from '../shared/grades'
 import { sb } from '../shared/supabase'
 import { PHASE_LABEL, type AiGradeRow, type AiMode, type AiRunRow, type GradeRow, type PhotoRow } from '../shared/types'
 import { downloadCsv, errorText, getSignedUrl, today, toCsv, useSignedUrls, type AiData } from './data'
-import { AiError, answerJson, buildParts, callGemini, loadKey, maskKey, prepareImage, PROMPT_VERSION, saveKey, type Example } from './gemini'
-import { catOf, compare, humanTruth, pct, type Truth } from './metrics'
+import { AiError, answerJson, areaText, buildParts, callAi, loadKey, maskKey, prepareImage, PROMPT_VERSION, saveKey, toAiRow, type Example } from '../shared/ai'
+import { catOf, compare, compareReport, humanTruth, pct, type Truth } from './metrics'
 import { ConfusionTable, Stat } from './ui'
 
 type Props = {
@@ -114,7 +114,7 @@ export function AiView({ photos, grades, name, onSelect, ai }: Props) {
   }, [selected, runRows, photoById, truth, targetList, max])
 
   const execute = async (job: Job) => {
-    if (!key || running || !job.list.length) return
+    if (running || !job.list.length) return
     stopRef.current = false
     setRunning(true)
     setConfirmDelete(false)
@@ -149,21 +149,11 @@ export function AiView({ photos, grades, name, onSelect, ai }: Props) {
         const p = job.list[i]
         try {
           const img = await prepareImage(p, await getSignedUrl(p.storage_path))
-          const { result: r, latencyMs } = await callGemini(key, job.model, buildParts(img, exData), (sec) =>
-            setProgress((s) => ({ ...s, message: `무료 한도에 걸려 ${sec}초 기다렸다가 다시 보냅니다…` })),
-          )
-          const row: AiGradeRow = {
-            run_id: job.runId,
-            photo_id: p.id,
-            grade: r.grade,
-            unusable: r.unusable,
-            is_drain: r.is_drain,
-            covered_percent: r.covered_percent,
-            confidence: r.confidence,
-            causes: r.causes,
-            reason: r.reason,
-            latency_ms: latencyMs,
-          }
+          const { result: r, latencyMs } = await callAi(job.model, buildParts(img, exData), {
+            key: key || undefined,
+            onWait: (sec) => setProgress((s) => ({ ...s, message: `무료 한도에 걸려 ${sec}초 기다렸다가 다시 보냅니다…` })),
+          })
+          const row = toAiRow(job.runId, p.id, r, latencyMs)
           const up = await sb().from('ai_grades').upsert(row)
           if (up.error) throw up.error
           saved++
@@ -223,6 +213,11 @@ export function AiView({ photos, grades, name, onSelect, ai }: Props) {
     return t && (!onlyAgreed || t.raters >= 2)
   })
   const stats = compare(compared.map((r) => ({ a: truth.get(r.photo_id)!.cat, b: catOf(r.grade, r.unusable) })))
+  const reportStats = compareReport(
+    compared
+      .filter((r) => truth.get(r.photo_id)!.report !== null)
+      .map((r) => ({ a: truth.get(r.photo_id)!.report as boolean, b: Boolean(r.needs_report) })),
+  )
   const needReview = runRows.filter((r) => r.unusable || (r.confidence ?? 0) < CONFIG.ai.reviewConfidence).length
   const avgSec = runRows.length ? runRows.reduce((s, r) => s + (r.latency_ms ?? 0), 0) / runRows.length / 1000 : null
 
@@ -233,12 +228,16 @@ export function AiView({ photos, grades, name, onSelect, ai }: Props) {
       const t = truth.get(r.photo_id)
       return [
         r.photo_id, p?.drain_code, p ? PHASE_LABEL[p.phase] : '', t?.cat ?? '', t?.raters ?? 0,
-        r.grade, r.unusable, r.covered_percent, r.confidence, (r.causes ?? []).join('|'), r.reason, r.latency_ms,
+        t?.report ?? '', r.grade, r.unusable, r.needs_report, r.grate_percent, r.around_percent, r.covered_percent, r.confidence,
+        (r.causes ?? []).join('|'), r.reason, r.latency_ms,
       ]
     })
     downloadCsv(
       `AI채점_${today()}_${selected.model}.csv`,
-      toCsv(['photo_id', '빗물받이번호', '단계', '사람정답', '매긴사람수', 'AI등급', 'AI판단불가', '가려진비율', '확신도', '원인', '이유', '응답ms'], rows),
+      toCsv(
+        ['photo_id', '빗물받이번호', '단계', '사람정답', '매긴사람수', '사람신고', 'AI등급', 'AI판단불가', 'AI신고', '덮개막힘', '주변쓰레기', '쓰레기면적', '확신도', '원인', '이유', '응답ms'],
+        rows,
+      ),
     )
   }
 
@@ -259,10 +258,10 @@ export function AiView({ photos, grades, name, onSelect, ai }: Props) {
       {ai.error && <p className="rounded-lg bg-red-50 px-3 py-2 text-red-800">{ai.error}</p>}
 
       <section className="space-y-2 rounded-lg border border-gray-200 p-3">
-        <p className="font-semibold text-gray-900">Gemini API 키</p>
+        <p className="font-semibold text-gray-900">AI 연결</p>
         {key ? (
-          <div className="flex items-center gap-3">
-            <span className="text-gray-800">저장된 키 {maskKey(key)} (이 PC 브라우저에만 저장)</span>
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-gray-800">이 PC에 저장된 키 {maskKey(key)} 로 Gemini를 바로 부릅니다.</span>
             <button
               onClick={() => {
                 saveKey('')
@@ -271,11 +270,18 @@ export function AiView({ photos, grades, name, onSelect, ai }: Props) {
               disabled={running}
               className="h-8 rounded-md border border-gray-300 px-3 font-medium disabled:opacity-40"
             >
-              키 지우기
+              키 지우고 서버 함수 쓰기
             </button>
           </div>
         ) : (
-          <div className="flex flex-wrap items-center gap-2">
+          <p className="text-gray-800">
+            Supabase 서버 함수({CONFIG.ai.functionName})가 대신 부릅니다. 키는 Supabase 비밀값에만 있고 폰과 같은 키를 씁니다.
+          </p>
+        )}
+        {!key && (
+          <details className="text-gray-800">
+            <summary className="cursor-pointer text-gray-700">고급: 서버 함수 없이 이 PC에서 키로 직접 부르기</summary>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
             <input
               type="password"
               value={keyDraft}
@@ -299,10 +305,11 @@ export function AiView({ photos, grades, name, onSelect, ai }: Props) {
               키 만들기 (Google AI Studio)
             </a>
           </div>
+          </details>
         )}
         <p className="text-gray-700">
-          키는 서버나 GitHub에 올라가지 않습니다. 무료 구간에 보낸 사진은 구글 제품 개선에 쓰일 수 있으니, 사람 얼굴·차량 번호판이 나온 사진은
-          연습용으로 바꿔 빼 주세요.
+          키는 GitHub나 사이트 코드에 들어가지 않습니다. 무료 구간에 보낸 사진은 구글 제품 개선에 쓰일 수 있으니, 사람 얼굴·차량 번호판이 나온
+          사진은 연습용으로 바꿔 빼 주세요. 지금 기준은 {PROMPT_VERSION}(덮개·주변 중 더 심한 쪽 + 신고 필요)입니다.
         </p>
       </section>
 
@@ -384,7 +391,7 @@ export function AiView({ photos, grades, name, onSelect, ai }: Props) {
           ) : (
             <button
               onClick={startNew}
-              disabled={!key || !plan.list.length || (mode === 'few' && !plan.examples.length)}
+              disabled={!plan.list.length || (mode === 'few' && !plan.examples.length)}
               className="h-9 rounded-md bg-blue-600 px-4 font-semibold text-white disabled:bg-gray-300"
             >
               AI 채점 시작
@@ -403,7 +410,6 @@ export function AiView({ photos, grades, name, onSelect, ai }: Props) {
           </div>
         )}
         {progress.message && <p className="rounded-md bg-amber-50 px-3 py-2 text-gray-900">{progress.message}</p>}
-        {!key && <p className="text-gray-700">먼저 위에서 API 키를 저장해 주세요.</p>}
       </section>
 
       <section className="space-y-3 rounded-lg border border-gray-200 p-3">
@@ -458,7 +464,7 @@ export function AiView({ photos, grades, name, onSelect, ai }: Props) {
                 </span>
                 <button
                   onClick={continueSelected}
-                  disabled={running || !key || !continuePlan.list.length || (selected.mode === 'few' && !continuePlan.examples.length)}
+                  disabled={running || !continuePlan.list.length || (selected.mode === 'few' && !continuePlan.examples.length)}
                   className="h-9 rounded-md bg-gray-900 px-3 font-semibold text-white disabled:bg-gray-300"
                 >
                   {continuePlan.list.length}장 이어서 채점
@@ -480,6 +486,11 @@ export function AiView({ photos, grades, name, onSelect, ai }: Props) {
                 label="사람이 다시 볼 사진"
                 value={runRows.length ? `${needReview}장 (${pct(needReview, runRows.length)})` : '-'}
                 hint={`확신도 ${CONFIG.ai.reviewConfidence} 미만이거나 판단 불가`}
+              />
+              <Stat
+                label="신고 필요 판단 일치"
+                value={reportStats.n ? `${reportStats.agree}장 (${pct(reportStats.agree, reportStats.n)})` : '-'}
+                hint={`사람·AI 둘 다 신고 ${reportStats.bothYes}장`}
               />
               <Stat label="평균 응답 시간" value={avgSec === null ? '-' : `${avgSec.toFixed(1)}초`} />
             </div>
@@ -563,7 +574,8 @@ function AnswerTable({
                 <th className="whitespace-nowrap py-1.5 pr-2 font-medium">번호·단계</th>
                 <th className="whitespace-nowrap py-1.5 pr-2 font-medium">사람</th>
                 <th className="whitespace-nowrap py-1.5 pr-2 font-medium">AI</th>
-                <th className="whitespace-nowrap py-1.5 pr-2 font-medium">가려짐</th>
+                <th className="whitespace-nowrap py-1.5 pr-2 font-medium">신고(사람/AI)</th>
+                <th className="whitespace-nowrap py-1.5 pr-2 font-medium">쓰레기 비율</th>
                 <th className="whitespace-nowrap py-1.5 pr-2 font-medium">확신도</th>
                 <th className="whitespace-nowrap py-1.5 pr-2 font-medium">원인</th>
                 <th className="whitespace-nowrap py-1.5 pr-2 font-medium">이유</th>
@@ -592,7 +604,10 @@ function AnswerTable({
                       </td>
                       <td className="whitespace-nowrap py-1.5 pr-2 text-gray-800">{humanText(r.photo_id)}</td>
                       <td className={`whitespace-nowrap py-1.5 pr-2 ${miss ? 'font-semibold text-red-700' : 'text-gray-900'}`}>{gradeText(r.grade, r.unusable)}</td>
-                      <td className="whitespace-nowrap py-1.5 pr-2 text-gray-800">{r.covered_percent ?? '-'}%</td>
+                      <td className={`whitespace-nowrap py-1.5 pr-2 ${t && t.report !== null && t.report !== Boolean(r.needs_report) ? 'font-semibold text-red-700' : 'text-gray-800'}`}>
+                        {t ? (t.report === null ? '다름' : t.report ? '신고' : '-') : '-'} / {r.needs_report ? '신고' : '-'}
+                      </td>
+                      <td className="whitespace-nowrap py-1.5 pr-2 text-gray-800">{areaText(r)}</td>
                       <td className={`whitespace-nowrap py-1.5 pr-2 ${low ? 'font-semibold text-amber-800' : 'text-gray-800'}`}>{r.confidence?.toFixed(2) ?? '-'}</td>
                       <td className="py-1.5 pr-2 text-gray-800">{(r.causes ?? []).join(', ') || '-'}</td>
                       <td className="max-w-[320px] py-1.5 pr-2 text-gray-800">{r.reason || '-'}</td>
@@ -604,7 +619,7 @@ function AnswerTable({
                     </tr>
                     {open && (
                       <tr className="border-b border-gray-200">
-                        <td colSpan={9} className="pb-2">
+                        <td colSpan={10} className="pb-2">
                           <pre className="overflow-x-auto rounded bg-gray-50 p-2 text-xs text-gray-900">{answerJson(r)}</pre>
                         </td>
                       </tr>

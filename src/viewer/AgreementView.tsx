@@ -3,7 +3,7 @@ import { CONFIG } from '../shared/config'
 import { gradeText } from '../shared/grades'
 import { PHASE_LABEL, type GradeRow, type PhotoRow } from '../shared/types'
 import { downloadCsv, today, toCsv, useSignedUrls } from './data'
-import { catOf, compare, pct } from './metrics'
+import { catOf, compare, compareReport, pct } from './metrics'
 import { ConfusionTable, Stat } from './ui'
 
 type Props = {
@@ -47,19 +47,21 @@ export function AgreementView({ photos, grades, onSelect }: Props) {
     () => compare(pairs.map(({ a, b }) => ({ a: catOf(a.grade, a.unusable), b: catOf(b.grade, b.unusable) }))),
     [pairs],
   )
+  const report = useMemo(() => compareReport(pairs.map(({ a, b }) => ({ a: a.needs_report, b: b.needs_report }))), [pairs])
   const same = (x: Pair) => catOf(x.a.grade, x.a.unusable) === catOf(x.b.grade, x.b.unusable)
   const disagreements = pairs.filter((x) => !same(x))
   const answerKey = pairs.filter((x) => same(x) && !x.a.unusable)
   const urls = useSignedUrls(disagreements.slice(0, 60).map((x) => x.p.thumb_path))
 
   const exportAnswerKey = () => {
-    const rows = answerKey.map(({ p, a }) => [
+    const rows = answerKey.map(({ p, a, b }) => [
       p.id, p.drain_code, PHASE_LABEL[p.phase], p.photographer, p.taken_at, a.grade,
+      a.needs_report === b.needs_report ? a.needs_report : '불일치',
       p.storage_path, p.width, p.height, p.box_x, p.box_y, p.box_w, p.box_h, p.lat, p.lng,
     ])
     downloadCsv(
       `정답지_${A}_${B}_${today()}.csv`,
-      toCsv(['photo_id', '빗물받이번호', '단계', '촬영자', '촬영시각', '등급', '사진경로', '폭', '높이', 'box_x', 'box_y', 'box_w', 'box_h', '위도', '경도'], rows),
+      toCsv(['photo_id', '빗물받이번호', '단계', '촬영자', '촬영시각', '등급', '신고필요', '사진경로', '폭', '높이', 'box_x', 'box_y', 'box_w', 'box_h', '위도', '경도'], rows),
     )
   }
 
@@ -69,9 +71,9 @@ export function AgreementView({ photos, grades, onSelect }: Props) {
       .filter((g) => photoById.has(g.photo_id))
       .map((g) => {
         const p = photoById.get(g.photo_id)!
-        return [g.photo_id, p.drain_code, PHASE_LABEL[p.phase], g.grader, g.grade, g.unusable, g.updated_at]
+        return [g.photo_id, p.drain_code, PHASE_LABEL[p.phase], g.grader, g.grade, g.unusable, g.needs_report, g.updated_at]
       })
-    downloadCsv(`전체등급_${today()}.csv`, toCsv(['photo_id', '빗물받이번호', '단계', '채점자', '등급', '판단불가', '매긴시각'], rows))
+    downloadCsv(`전체등급_${today()}.csv`, toCsv(['photo_id', '빗물받이번호', '단계', '채점자', '등급', '판단불가', '신고필요', '매긴시각'], rows))
   }
 
   return (
@@ -120,11 +122,12 @@ export function AgreementView({ photos, grades, onSelect }: Props) {
         </div>
       ) : (
         <>
-          <section className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+          <section className="grid grid-cols-2 gap-3 lg:grid-cols-3">
             <Stat label="둘 다 매긴 사진" value={`${stats.n}장`} />
             <Stat label="완전 일치" value={`${stats.agree}장 (${pct(stats.agree, stats.n)})`} />
             <Stat label="±1 등급 이내" value={pct(stats.within1, stats.numeric)} hint="판단 불가 제외" />
             <Stat label="코언 카파" value={stats.kappa === null ? '-' : stats.kappa.toFixed(2)} hint="우연히 맞을 확률을 뺀 일치도" />
+            <Stat label="신고 필요 판단 일치" value={report.n ? `${report.agree}장 (${pct(report.agree, report.n)})` : '-'} hint={`둘 다 신고 ${report.bothYes}장`} />
             <Stat label="정답지" value={`${answerKey.length} / ${CONFIG.answerKeyGoal}장`} hint="두 사람이 같고 판단 가능한 사진 (기획안 목표)" />
           </section>
 
@@ -146,10 +149,10 @@ export function AgreementView({ photos, grades, onSelect }: Props) {
                         {p.drain_code} · {PHASE_LABEL[p.phase]}
                       </p>
                       <p className="text-gray-700">
-                        {A}: {gradeText(a.grade, a.unusable)}
+                        {A}: {gradeText(a.grade, a.unusable, a.needs_report)}
                       </p>
                       <p className="text-gray-700">
-                        {B}: {gradeText(b.grade, b.unusable)}
+                        {B}: {gradeText(b.grade, b.unusable, b.needs_report)}
                       </p>
                     </div>
                   </button>

@@ -51,14 +51,18 @@ export type PhotoRow = {
   device: string | null
 }
 
-/** public.grades 테이블 한 줄. 판단 불가면 grade 는 null */
+/** public.grades 테이블 한 줄. 판단 불가면 grade 는 null. needs_report 는 등급과 별개인 '신고 필요' 표시 */
 export type GradeRow = {
   photo_id: string
   grader: string
   grade: number | null
   unusable: boolean
+  needs_report: boolean
   updated_at?: string
 }
+
+/** 등급 입력 한 번에 고르는 값 */
+export type GradeInput = { grade: number | null; unusable: boolean; needs_report: boolean }
 
 /** zero = 등급 기준 문장만, few = 등급별 예시 사진도 함께 보냄 */
 export type AiMode = 'zero' | 'few'
@@ -81,7 +85,11 @@ export type AiGradeRow = {
   photo_id: string
   grade: number | null
   unusable: boolean
+  needs_report: boolean | null
   is_drain: boolean | null
+  /** v3부터: 덮개를 가린 비율, 주변을 덮은 비율. covered_percent 는 둘 중 큰 값(v2까지는 흰 점선 전체 비율) */
+  grate_percent: number | null
+  around_percent: number | null
   covered_percent: number | null
   confidence: number | null
   causes: string[] | null

@@ -121,3 +121,13 @@ grant select, insert, update, delete on public.ai_runs to authenticated;
 grant select, insert, update, delete on public.ai_grades to authenticated;
 revoke all on public.ai_runs from anon;
 revoke all on public.ai_grades from anon;
+
+-- 6. '신고 필요' 표시 (2026-10-02 추가): 빗물받이 아래(덮개 틈 안쪽)에 쌓여 시민이 치울 수 없는 쓰레기.
+--    등급과 별개로 사람·AI 모두 표시한다. 지자체가 나중에 신고된 곳을 청소한다.
+alter table public.grades add column if not exists needs_report boolean not null default false;
+alter table public.ai_grades add column if not exists needs_report boolean;
+
+-- 7. 등급 기준 v3 (2026-10-02 추가): 덮개를 가린 비율과 주변을 덮은 비율 중 더 심한 쪽으로 매긴다.
+--    AI 가 두 비율을 따로 답하므로 따로 저장한다. covered_percent 에는 둘 중 큰 값이 들어간다.
+alter table public.ai_grades add column if not exists grate_percent smallint;
+alter table public.ai_grades add column if not exists around_percent smallint;

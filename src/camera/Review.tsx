@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
 import { AnnotatedImage } from '../shared/AnnotatedImage'
 import { CONFIG } from '../shared/config'
-import { CAPTURE_MODE_LABEL, PHASES, type Box, type CaptureMode, type Phase } from '../shared/types'
+import { GRADE_RULES, GRADES, REPORT, UNUSABLE } from '../shared/grades'
+import { CAPTURE_MODE_LABEL, PHASES, type Box, type CaptureMode, type GradeInput, type Phase } from '../shared/types'
 import type { Fix } from './geo'
 import { nextCode, recentCodes, suggestNext } from './prefs'
 
@@ -16,7 +17,11 @@ export type Shot = {
   quality: { sharpness: number; brightness: number }
 }
 
-export type ReviewResult = { box: Box; code: string; phase: Phase; memo: string; isTest: boolean }
+/** mine: 찍은 사람이 현장에서 매기는 1차 등급 */
+export type ReviewResult = { box: Box; code: string; phase: Phase; memo: string; isTest: boolean; mine: GradeInput }
+
+/** 등급 버튼 값: 0~4 또는 판단 불가 */
+type Pick = number | 'X' | null
 
 type Props = {
   shot: Shot
@@ -33,6 +38,9 @@ export function Review({ shot, locationText, saving, onRetake, onSave }: Props) 
   const [phase, setPhase] = useState<Phase>(initial.phase)
   const [memo, setMemo] = useState('')
   const [isTest, setIsTest] = useState(shot.mode === 'demo')
+  const [pick, setPick] = useState<Pick>(null)
+  const [report, setReport] = useState(false)
+  const [showRules, setShowRules] = useState(false)
   const [error, setError] = useState('')
 
   const chips = useMemo(() => {
@@ -53,16 +61,19 @@ export function Review({ shot, locationText, saving, onRetake, onSave }: Props) 
 
   const submit = () => {
     const c = code.trim().toUpperCase()
+    if (pick === null) return setError('내 등급을 골라 주세요.')
     if (!c) return setError('빗물받이 번호를 입력해 주세요.')
     setError('')
-    onSave({ box, code: c, phase, memo: memo.trim(), isTest })
+    const mine: GradeInput =
+      pick === 'X' ? { grade: null, unusable: true, needs_report: report } : { grade: pick, unusable: false, needs_report: report }
+    onSave({ box, code: c, phase, memo: memo.trim(), isTest, mine })
   }
 
   return (
     <div className="fixed inset-0 z-20 flex flex-col bg-white" style={{ height: '100dvh' }}>
       <div className="px-4 pb-2" style={{ paddingTop: 'max(env(safe-area-inset-top), 10px)' }}>
         <p className="text-[16px] font-bold text-gray-900">빨간 박스를 빗물받이 덮개 테두리에 맞춰 주세요</p>
-        <p className="text-[14px] text-gray-700">모서리를 끌면 크기, 가운데를 끌면 위치가 바뀝니다. 흰 점선은 주변 범위입니다.</p>
+        <p className="text-[14px] text-gray-700">모서리를 끌면 크기, 가운데를 끌면 위치가 바뀝니다. 흰 점선 안이 등급을 매기는 범위입니다.</p>
       </div>
 
       <AnnotatedImage
@@ -76,6 +87,57 @@ export function Review({ shot, locationText, saving, onRetake, onSave }: Props) 
 
       <div className="max-h-[40vh] space-y-3 overflow-y-auto border-t border-gray-200 px-4 py-3">
         {warning && <p className="rounded-lg bg-amber-50 px-3 py-2 text-[15px] text-amber-900">{warning}</p>}
+
+        <div>
+          <div className="flex items-center justify-between">
+            <p className="text-[15px] font-semibold text-gray-900">내 등급 (덮개·주변 중 더 심한 쪽)</p>
+            <button onClick={() => setShowRules((s) => !s)} className="min-h-10 px-1 text-[14px] font-semibold text-blue-700">
+              {showRules ? '기준 접기' : '기준 보기'}
+            </button>
+          </div>
+          {showRules && (
+            <ul className="mb-2 list-disc space-y-1 rounded-lg bg-gray-50 py-2 pl-7 pr-3 text-[14px] text-gray-800">
+              {GRADE_RULES.map((r) => (
+                <li key={r}>{r}</li>
+              ))}
+              {GRADES.map((g) => (
+                <li key={g.value}>
+                  {g.value} {g.short}: {g.desc}
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="mt-1 grid grid-cols-3 gap-2">
+            {GRADES.map((g) => (
+              <button
+                key={g.value}
+                onClick={() => setPick(g.value)}
+                className={`min-h-12 rounded-lg border px-1 text-[15px] font-semibold ${pick === g.value ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-300 text-gray-900'}`}
+              >
+                {g.value} {g.short}
+              </button>
+            ))}
+            <button
+              onClick={() => setPick('X')}
+              className={`min-h-12 rounded-lg border px-1 text-[15px] font-semibold ${pick === 'X' ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-300 text-gray-900'}`}
+            >
+              {UNUSABLE.short}
+            </button>
+          </div>
+          <button
+            onClick={() => setReport((r) => !r)}
+            className={`mt-2 flex min-h-12 w-full items-center gap-3 rounded-lg border px-3 text-left text-[15px] ${report ? 'border-red-600 bg-red-50 text-red-900' : 'border-gray-300 text-gray-900'}`}
+          >
+            <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded border-2 font-bold ${report ? 'border-red-600 bg-red-600 text-white' : 'border-gray-400'}`}>
+              {report ? '✓' : ''}
+            </span>
+            <span>
+              <span className="font-semibold">{REPORT.short}</span>
+              <span className="block text-[14px] text-gray-700">덮개 아래(틈 안쪽)에 쓰레기가 쌓여 시민이 치울 수 없음</span>
+            </span>
+          </button>
+          <p className="mt-1 text-[14px] text-gray-700">현장에서 본 것이 아니라 사진에 보이는 것만 보고 매겨 주세요.</p>
+        </div>
 
         <div>
           <label className="text-[15px] font-semibold text-gray-900" htmlFor="drain-code">

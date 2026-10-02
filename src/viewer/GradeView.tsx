@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AnnotatedImage } from '../shared/AnnotatedImage'
-import { GRADE_RULES, GRADES, UNUSABLE } from '../shared/grades'
+import { GRADE_RULES, GRADES, REPORT, UNUSABLE } from '../shared/grades'
 import { sb } from '../shared/supabase'
 import { rowBox, type GradeRow, type PhotoRow } from '../shared/types'
 import { errorText, signUrls, useSignedUrls } from './data'
@@ -31,6 +31,11 @@ export function GradeView({ photos, grades, name, onGraded }: Props) {
   const current = photo ? mine.get(photo.id) : undefined
   const done = sorted.filter((p) => mine.has(p.id)).length
   const urls = useSignedUrls(photo ? [photo.storage_path] : [])
+  // '신고 필요'는 등급과 별개. 사진이 바뀌면 이미 매긴 값으로 맞춘다
+  const [report, setReport] = useState(false)
+  useEffect(() => {
+    setReport(current?.needs_report ?? false)
+  }, [photo?.id, current?.needs_report])
 
   // 다음 사진 주소를 미리 받아 둔다
   const upcoming = list.slice(idx + 1, idx + 3).map((p) => p.storage_path).join('|')
@@ -38,11 +43,11 @@ export function GradeView({ photos, grades, name, onGraded }: Props) {
     if (upcoming) void signUrls(upcoming.split('|')).catch(() => undefined)
   }, [upcoming])
 
-  const save = async (grade: number | null, unusable: boolean) => {
+  const save = async (grade: number | null, unusable: boolean, needsReport = report) => {
     if (!photo || busy) return
     setBusy(true)
     setError('')
-    const row: GradeRow = { photo_id: photo.id, grader: name, grade, unusable, updated_at: new Date().toISOString() }
+    const row: GradeRow = { photo_id: photo.id, grader: name, grade, unusable, needs_report: needsReport, updated_at: new Date().toISOString() }
     const { error: err } = await sb().from('grades').upsert(row, { onConflict: 'photo_id,grader' })
     setBusy(false)
     if (err) return setError(errorText(err))
@@ -51,12 +56,20 @@ export function GradeView({ photos, grades, name, onGraded }: Props) {
     if (!onlyTodo) setPos(Math.min(idx + 1, list.length - 1))
   }
 
+  /** 이미 매긴 사진이면 바로 저장하고, 아직이면 등급을 고를 때 같이 저장한다 */
+  const toggleReport = () => {
+    const next = !report
+    setReport(next)
+    if (current) void save(current.grade, current.unusable, next)
+  }
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target
       if (t instanceof HTMLInputElement || t instanceof HTMLSelectElement || t instanceof HTMLTextAreaElement) return
       if (/^[0-4]$/.test(e.key)) void save(Number(e.key), false)
       else if (e.key === 'x' || e.key === 'X') void save(null, true)
+      else if (e.key === 'r' || e.key === 'R') toggleReport()
       else if (e.key === 'ArrowRight') setPos(Math.min(idx + 1, list.length - 1))
       else if (e.key === 'ArrowLeft') setPos(Math.max(idx - 1, 0))
     }
@@ -135,6 +148,20 @@ export function GradeView({ photos, grades, name, onGraded }: Props) {
             ))}
           </ul>
         </div>
+        <button
+          onClick={toggleReport}
+          disabled={!photo || busy}
+          className={`flex w-full items-start gap-3 rounded-lg border p-2.5 text-left disabled:opacity-50 ${report ? 'border-red-600 bg-red-50' : 'border-gray-300 hover:bg-gray-50'}`}
+        >
+          <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-lg font-bold ${report ? 'bg-red-600 text-white' : 'border-2 border-gray-400 text-gray-500'}`}>
+            {report ? '✓' : 'R'}
+          </span>
+          <span>
+            <span className="block font-semibold text-gray-900">{REPORT.short} (등급과 별개)</span>
+            <span className="block text-gray-700">{REPORT.desc}</span>
+          </span>
+        </button>
+        <p className="text-gray-700">신고 필요를 먼저 켜고 등급을 누르면 둘 다 저장됩니다.</p>
         <div className="space-y-2">
           {GRADES.map((g) => (
             <button
@@ -162,7 +189,7 @@ export function GradeView({ photos, grades, name, onGraded }: Props) {
             </span>
           </button>
         </div>
-        <p className="text-gray-700">키보드: 숫자 0~4, X(판단 불가), ←·→(이동)</p>
+        <p className="text-gray-700">키보드: 숫자 0~4, X(판단 불가), R(신고 필요), ←·→(이동)</p>
         {error && <p className="rounded-md bg-red-50 px-3 py-2 text-red-800">{error}</p>}
       </div>
     </div>

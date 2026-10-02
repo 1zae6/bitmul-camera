@@ -4,11 +4,12 @@ import { CONFIG } from '../shared/config'
 import { LoginScreen } from '../shared/LoginScreen'
 import { sb } from '../shared/supabase'
 import { PHASE_LABEL } from '../shared/types'
+import { AiCheck, type AiJob } from './AiCheck'
 import { CameraView, type Captured } from './CameraView'
 import { freshFix, geoText, useGeolocation } from './geo'
 import { Home } from './Home'
 import { canvasToJpeg, encodePhoto } from './image'
-import { rememberShot } from './prefs'
+import { getAiField, rememberShot } from './prefs'
 import { assess } from './quality'
 import { addPending, uploadErrorText, useQueue, type PendingRow } from './queue'
 import { Review, type ReviewResult, type Shot } from './Review'
@@ -27,12 +28,13 @@ export function App() {
   return <Shooter name={auth.name} />
 }
 
-type Stage = 'home' | 'camera' | 'review'
+type Stage = 'home' | 'camera' | 'review' | 'ai'
 
 function Shooter({ name }: { name: string }) {
   const demo = new URLSearchParams(window.location.search).has('demo')
   const [stage, setStage] = useState<Stage>('home')
   const [shot, setShot] = useState<Shot | null>(null)
+  const [aiJob, setAiJob] = useState<AiJob | null>(null)
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState('')
   const geo = useGeolocation(stage !== 'home')
@@ -89,8 +91,14 @@ function Shooter({ name }: { name: string }) {
         is_test: r.isTest,
         device: navigator.userAgent.slice(0, 200),
       }
-      await addPending({ id, photo, thumb, row, addedAt: Date.now() })
+      await addPending({ id, photo, thumb, row, addedAt: Date.now(), grade: r.mine })
       rememberShot(r.code, r.phase)
+      if (getAiField()) {
+        // 찍고 바로 AI 채점: 사진은 결과 화면이 끝날 때까지 들고 있는다
+        setAiJob({ id, code: r.code, phase: r.phase, shot, box: r.box, mine: r.mine })
+        setStage('ai')
+        return
+      }
       closeShot()
       setStage('camera')
       setToast(`${r.code} ${PHASE_LABEL[r.phase]} 저장했습니다. 올리는 중…`)
@@ -130,6 +138,23 @@ function Shooter({ name }: { name: string }) {
             setStage('camera')
           }}
           onSave={(r) => void onSave(r)}
+        />
+      )}
+      {stage === 'ai' && aiJob && (
+        <AiCheck
+          job={aiJob}
+          name={name}
+          onDone={() => {
+            setAiJob(null)
+            closeShot()
+            setStage('camera')
+          }}
+          onRetake={() => {
+            setAiJob(null)
+            closeShot()
+            setStage('camera')
+            setToast('연습용으로 바꿨습니다. 다시 찍어 주세요.')
+          }}
         />
       )}
       {toast && (

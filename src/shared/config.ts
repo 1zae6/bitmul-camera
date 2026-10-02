@@ -9,8 +9,9 @@ export const CONFIG = {
   },
   /** 촬영 화면의 가이드 틀과 기본 빨간 박스 (사진 폭·높이에 대한 비율) */
   guide: { x: 0.15, y: 0.25, w: 0.7, h: 0.5 },
-  /** 빨간 박스를 한 변마다 이만큼(박스 크기 대비) 넓힌 범위를 '주변 범위'로 보여 준다 */
-  contextPadding: 0.3,
+  /** 빨간 박스를 한 변마다 이만큼(박스 크기 대비) 넓힌 범위가 '주변'이다. 흰 점선으로 보여 주고 AI 에도 이 범위만 보낸다.
+   *  사진은 원본째 저장되므로 바꿔도 사진은 그대로지만, 정답지 등급을 매기기 시작한 뒤에는 바꾸지 않는다 */
+  contextPadding: 0.2,
   /** 박스 최소 크기 (사진 대비) */
   minBoxSize: 0.05,
   /** 흔들림 멈추면 자동 촬영 */
@@ -69,6 +70,10 @@ export const CONFIG = {
     reviewConfidence: 0.7,
     /** 기획안의 AI 판정 일치율 목표 */
     goalAgreement: 0.8,
+    /** 폰에서 찍고 바로 채점할 때 쓰는 모델 (하루 한도가 넉넉한 Flash-Lite) */
+    fieldModel: 'gemini-3.5-flash-lite',
+    /** Gemini 를 대신 불러 주는 Supabase 서버 함수 이름 (supabase/functions/grade-photo) */
+    functionName: 'grade-photo',
     keyPageUrl: 'https://aistudio.google.com/app/apikey',
     rateLimitUrl: 'https://aistudio.google.com/rate-limit',
   },

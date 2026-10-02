@@ -9,6 +9,13 @@ export const TEAM_EMAIL = import.meta.env.VITE_TEAM_EMAIL ?? ''
 
 export const isConfigured = Boolean(url && key && TEAM_EMAIL)
 
+/** 서버 함수(Edge Function) 주소. 로그인한 사람의 토큰을 붙여 부른다 */
+export function functionUrl(name: string): string {
+  return `${url}/functions/v1/${name}`
+}
+
+export const PUBLIC_KEY = key ?? ''
+
 const client: SupabaseClient | null = isConfigured ? createClient(url!, key!) : null
 
 /** 설정이 끝난 뒤에만 부른다 (설정 전에는 SetupNeeded 화면이 먼저 뜬다) */

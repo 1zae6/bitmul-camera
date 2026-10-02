@@ -101,7 +101,7 @@ export function PhotoList({ photos, myGrades, selectedId, onSelect }: Props) {
                   <p className="text-gray-700">
                     {p.photographer} · {fmtTime(p.taken_at)}
                   </p>
-                  <p className="text-gray-700">내 등급 {mine ? gradeText(mine.grade, mine.unusable) : '안 매김'}</p>
+                  <p className="text-gray-700">내 등급 {mine ? gradeText(mine.grade, mine.unusable, mine.needs_report) : '안 매김'}</p>
                 </div>
               </button>
             )

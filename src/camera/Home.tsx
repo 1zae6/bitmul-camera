@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { logout, saveName } from '../shared/auth'
 import { CONFIG } from '../shared/config'
 import { requestMotionPermission } from './motion'
+import { getAiField, setAiField } from './prefs'
 
 type Props = {
   name: string
@@ -13,6 +14,7 @@ type Props = {
 export function Home({ name, counts, queue, onStart }: Props) {
   const [renaming, setRenaming] = useState(false)
   const [draft, setDraft] = useState(name)
+  const [aiField, setAiFieldState] = useState(getAiField)
   const viewerUrl = new URL('viewer.html', window.location.href).href
   const total = counts.total ?? 0
   const percent = Math.min(100, Math.round((total / CONFIG.goal) * 100))
@@ -85,13 +87,29 @@ export function Home({ name, counts, queue, onStart }: Props) {
           </section>
         )}
 
+        <section className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 p-4">
+          <div>
+            <p className="text-[16px] font-semibold text-gray-900">찍고 바로 AI 채점</p>
+            <p className="text-[14px] text-gray-700">저장하면 AI가 바로 채점해 내 등급과 함께 보여 줍니다</p>
+          </div>
+          <button
+            onClick={() => {
+              setAiField(!aiField)
+              setAiFieldState(!aiField)
+            }}
+            className={`h-11 shrink-0 rounded-full px-4 text-[15px] font-semibold ${aiField ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-900'}`}
+          >
+            {aiField ? '켜짐' : '꺼짐'}
+          </button>
+        </section>
+
         <section className="rounded-xl bg-gray-50 p-4">
           <p className="text-[15px] font-semibold text-gray-900">찍는 순서</p>
           <ol className="mt-2 list-decimal space-y-1 pl-5 text-[15px] text-gray-800">
             <li>흰 틀 안에 빗물받이를 맞추고 폰을 멈추면 자동으로 찍힙니다.</li>
             <li>빨간 박스를 빗물받이 덮개 테두리에 맞춥니다.</li>
-            <li>빗물받이 번호와 청소 전·후를 고르고 저장합니다.</li>
-            <li>PC 뷰어에서 사진을 확인하고 등급을 매깁니다.</li>
+            <li>내 등급(덮개·주변 중 더 심한 쪽)과 신고 필요 여부, 번호·청소 전·후를 고르고 저장합니다.</li>
+            <li>AI 결과를 확인합니다. 2차 등급은 다른 사람이 PC 뷰어에서 매깁니다.</li>
           </ol>
         </section>
 

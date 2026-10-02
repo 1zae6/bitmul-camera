@@ -15,7 +15,7 @@ import {
   type PhotoRow,
 } from '../shared/types'
 import { downloadBlob, errorText, useSignedUrls } from './data'
-import { answerJson } from './gemini'
+import { answerJson, areaText } from '../shared/ai'
 
 type Props = {
   photo: PhotoRow
@@ -94,7 +94,7 @@ export function PhotoDetail({ photo, myGrade, aiRows, runs, onClose, onUpdated, 
       ) : (
         <div className="flex h-[340px] items-center justify-center rounded-lg bg-gray-100 text-gray-700">사진 불러오는 중…</div>
       )}
-      <p className="text-gray-700">빨간 박스 = 빗물받이, 흰 점선 = 주변 범위</p>
+      <p className="text-gray-700">빨간 박스 = 빗물받이, 흰 점선 안 = 등급을 매기는 범위</p>
 
       <dl className="grid grid-cols-[84px_1fr] gap-x-2 gap-y-1">
         <dt className="text-gray-700">촬영자</dt>
@@ -132,7 +132,7 @@ export function PhotoDetail({ photo, myGrade, aiRows, runs, onClose, onUpdated, 
         <dt className="text-gray-700">메모</dt>
         <dd>{photo.memo ?? '-'}</dd>
         <dt className="text-gray-700">내 등급</dt>
-        <dd>{myGrade ? gradeText(myGrade.grade, myGrade.unusable) : '안 매김'}</dd>
+        <dd>{myGrade ? gradeText(myGrade.grade, myGrade.unusable, myGrade.needs_report) : '안 매김'}</dd>
       </dl>
 
       <section className="rounded-lg border border-gray-200 p-3">
@@ -149,7 +149,7 @@ export function PhotoDetail({ photo, myGrade, aiRows, runs, onClose, onUpdated, 
               <div key={r.run_id} className="mt-2 space-y-1 border-t border-gray-200 pt-2">
                 <p className="text-gray-700">{runs.find((x) => x.run_id === r.run_id)?.label ?? r.run_id}</p>
                 <p className="font-semibold text-gray-900">
-                  AI {gradeText(r.grade, r.unusable)} · 가려짐 {r.covered_percent ?? '-'}% · 확신도 {r.confidence?.toFixed(2) ?? '-'}
+                  AI {gradeText(r.grade, r.unusable, Boolean(r.needs_report))} · {areaText(r)} · 확신도 {r.confidence?.toFixed(2) ?? '-'}
                 </p>
                 {r.reason && <p className="text-gray-800">{r.reason}</p>}
                 <details>

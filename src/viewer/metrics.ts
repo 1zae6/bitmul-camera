@@ -51,27 +51,40 @@ export function compare(pairs: Pair[]): Comparison {
   return { n, agree, within1, numeric, kappa, matrix }
 }
 
+/** '신고 필요' 표시가 같은지: 비교한 수, 같은 수, 둘 다 신고한 수 */
+export function compareReport(pairs: { a: boolean; b: boolean }[]) {
+  return {
+    n: pairs.length,
+    agree: pairs.filter((p) => p.a === p.b).length,
+    bothYes: pairs.filter((p) => p.a && p.b).length,
+  }
+}
+
 export function pct(n: number, d: number): string {
   return d ? `${Math.round((n / d) * 100)}%` : '-'
 }
 
-export type Truth = { cat: Cat; raters: number }
+/** report: 매긴 사람들의 '신고 필요'가 모두 같으면 그 값, 서로 다르면 null */
+export type Truth = { cat: Cat; raters: number; report: boolean | null }
 
 /**
  * 사람 등급으로 사진별 '정답'을 정한다.
- * 매긴 사람이 모두 같으면 정답(raters = 매긴 사람 수), 서로 다르면 conflicted 로 빼 둔다.
+ * 매긴 사람이 모두 같은 등급이면 정답(raters = 매긴 사람 수), 서로 다르면 conflicted 로 빼 둔다.
  */
 export function humanTruth(grades: GradeRow[]): { truth: Map<string, Truth>; conflicted: Set<string> } {
-  const byPhoto = new Map<string, Cat[]>()
+  const byPhoto = new Map<string, GradeRow[]>()
   for (const g of grades) {
     const list = byPhoto.get(g.photo_id) ?? []
-    list.push(catOf(g.grade, g.unusable))
+    list.push(g)
     byPhoto.set(g.photo_id, list)
   }
   const truth = new Map<string, Truth>()
   const conflicted = new Set<string>()
-  for (const [id, cats] of byPhoto) {
-    if (cats.every((c) => c === cats[0])) truth.set(id, { cat: cats[0], raters: cats.length })
+  for (const [id, list] of byPhoto) {
+    const cats = list.map((g) => catOf(g.grade, g.unusable))
+    const reports = list.map((g) => Boolean(g.needs_report))
+    const report = reports.every((r) => r === reports[0]) ? reports[0] : null
+    if (cats.every((c) => c === cats[0])) truth.set(id, { cat: cats[0], raters: cats.length, report })
     else conflicted.add(id)
   }
   return { truth, conflicted }
