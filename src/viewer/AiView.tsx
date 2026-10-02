@@ -1,6 +1,6 @@
 import { Fragment, useMemo, useRef, useState } from 'react'
 import { CONFIG } from '../shared/config'
-import { gradeText } from '../shared/grades'
+import { GRADES, gradeText } from '../shared/grades'
 import { sb } from '../shared/supabase'
 import { PHASE_LABEL, type AiGradeRow, type AiMode, type AiRunRow, type GradeRow, type PhotoRow } from '../shared/types'
 import { downloadCsv, errorText, getSignedUrl, today, toCsv, useSignedUrls, type AiData } from './data'
@@ -85,7 +85,7 @@ export function AiView({ photos, grades, name, onSelect, ai }: Props) {
           return t && t.cat !== 'X'
         })
         .sort((a, b) => truth.get(b.id)!.raters - truth.get(a.id)!.raters)
-      for (const g of [0, 1, 2, 3, 4]) {
+      for (const { value: g } of GRADES) {
         const ex = pool.find((p) => truth.get(p.id)!.cat === String(g))
         if (ex) examples.push({ photo: ex, grade: g })
       }
@@ -309,7 +309,7 @@ export function AiView({ photos, grades, name, onSelect, ai }: Props) {
         )}
         <p className="text-gray-700">
           키는 GitHub나 사이트 코드에 들어가지 않습니다. 무료 구간에 보낸 사진은 구글 제품 개선에 쓰일 수 있으니, 사람 얼굴·차량 번호판이 나온
-          사진은 연습용으로 바꿔 빼 주세요. 지금 기준은 {PROMPT_VERSION}(덮개·주변 중 더 심한 쪽 + 신고 필요)입니다.
+          사진은 연습용으로 바꿔 빼 주세요. 지금 기준은 {PROMPT_VERSION}(덮개·주변 중 더 심한 쪽, 4단계 + 신고 필요)입니다.
         </p>
       </section>
 

@@ -1,13 +1,15 @@
+import { GRADES, MAX_GRADE } from '../shared/grades'
 import type { GradeRow } from '../shared/types'
 
 // 등급 비교 계산. 사람끼리 비교(일치율 탭)와 AI·사람 비교(AI 채점 탭)가 같은 계산을 쓴다.
 
-export const CATS = ['0', '1', '2', '3', '4', 'X'] as const
-export type Cat = (typeof CATS)[number]
+/** 등급 칸 + 판단 불가(X). 등급 수는 grades.ts 를 따른다 */
+export const CATS: string[] = [...GRADES.map((g) => String(g.value)), 'X']
+export type Cat = string
 
-/** 판단 불가는 X */
+/** 판단 불가는 X. 예전 5단계 기준의 4등급은 지금 맨 위 등급으로 센다 */
 export function catOf(grade: number | null, unusable: boolean): Cat {
-  return unusable || grade === null ? 'X' : (String(grade) as Cat)
+  return unusable || grade === null ? 'X' : String(Math.min(grade, MAX_GRADE))
 }
 
 export type Pair = { a: Cat; b: Cat }

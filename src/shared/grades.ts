@@ -1,4 +1,4 @@
-// 등급 기준 (v3, 2026-10-02). 팀이 고치면 여기만 바꾸면 촬영 앱·뷰어·AI 지시문에 함께 반영된다.
+// 등급 기준 (v4, 2026-10-02: 50~90%와 90% 이상을 '많이 막힘' 한 단계로 합침). 팀이 고치면 여기만 바꾸면 촬영 앱·뷰어·AI 지시문에 함께 반영된다.
 // 기준을 바꾸면 src/shared/ai.ts 의 PROMPT_VERSION 도 올려서 AI 결과를 구분한다.
 
 export const GRADE_RULES = [
@@ -13,9 +13,11 @@ export const GRADES = [
   { value: 0, short: '깨끗함', desc: '덮개도 주변도 거의 깨끗하다. 둘 다 5% 미만' },
   { value: 1, short: '조금 쌓임', desc: '낙엽·꽁초가 조금 있다. 더 심한 쪽이 5~25% 덮였다' },
   { value: 2, short: '꽤 쌓임', desc: '더 심한 쪽이 25~50% 덮였다' },
-  { value: 3, short: '많이 쌓임', desc: '더 심한 쪽이 50~90% 덮였다' },
-  { value: 4, short: '다 덮임', desc: '덮개가 거의 다 막혔거나 주변이 거의 다 덮였다. 더 심한 쪽이 90% 이상' },
+  { value: 3, short: '많이 막힘', desc: '더 심한 쪽이 50% 이상 덮였다. 덮개가 다 막힌 것도 여기' },
 ] as const
+
+/** 가장 높은 등급 (예전 5단계 기준의 4등급은 이 값으로 센다) */
+export const MAX_GRADE = GRADES[GRADES.length - 1].value
 
 export const UNUSABLE = {
   short: '판단 불가',
@@ -29,6 +31,6 @@ export const REPORT = {
 }
 
 export function gradeText(grade: number | null, unusable: boolean, needsReport = false): string {
-  const base = unusable ? UNUSABLE.short : grade === null ? '-' : `${grade} ${GRADES[grade]?.short ?? ''}`
+  const base = unusable ? UNUSABLE.short : grade === null ? '-' : `${Math.min(grade, MAX_GRADE)} ${GRADES[Math.min(grade, MAX_GRADE)]?.short ?? ''}`
   return needsReport ? `${base} · 신고` : base
 }

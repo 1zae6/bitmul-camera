@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AnnotatedImage } from '../shared/AnnotatedImage'
-import { GRADE_RULES, GRADES, REPORT, UNUSABLE } from '../shared/grades'
+import { GRADE_RULES, GRADES, MAX_GRADE, REPORT, UNUSABLE } from '../shared/grades'
 import { sb } from '../shared/supabase'
 import { rowBox, type GradeRow, type PhotoRow } from '../shared/types'
 import { errorText, signUrls, useSignedUrls } from './data'
@@ -20,12 +20,18 @@ type Props = {
 export function GradeView({ photos, grades, name, onGraded }: Props) {
   const sorted = useMemo(() => [...photos].sort((a, b) => a.taken_at.localeCompare(b.taken_at)), [photos])
   const mine = useMemo(() => new Map(grades.filter((g) => g.grader === name).map((g) => [g.photo_id, g])), [grades, name])
+  // 정답지는 매긴 사람 전원이 같아야 하므로 사진마다 2명(찍은 사람 + 1명)만 매긴다
+  const raters = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const g of grades) m.set(g.photo_id, (m.get(g.photo_id) ?? 0) + 1)
+    return m
+  }, [grades])
   const [onlyTodo, setOnlyTodo] = useState(true)
   const [pos, setPos] = useState(0)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
-  const list = onlyTodo ? sorted.filter((p) => !mine.has(p.id)) : sorted
+  const list = onlyTodo ? sorted.filter((p) => !mine.has(p.id) && (raters.get(p.id) ?? 0) < 2) : sorted
   const idx = Math.min(pos, Math.max(0, list.length - 1))
   const photo = list[idx] as PhotoRow | undefined
   const current = photo ? mine.get(photo.id) : undefined
@@ -52,7 +58,7 @@ export function GradeView({ photos, grades, name, onGraded }: Props) {
     setBusy(false)
     if (err) return setError(errorText(err))
     onGraded(row)
-    // '안 매긴 사진만'이면 매긴 사진이 목록에서 빠지므로 같은 자리에 다음 사진이 온다
+    // '2차 채점할 사진만'이면 매긴 사진이 목록에서 빠지므로 같은 자리에 다음 사진이 온다
     if (!onlyTodo) setPos(Math.min(idx + 1, list.length - 1))
   }
 
@@ -67,7 +73,7 @@ export function GradeView({ photos, grades, name, onGraded }: Props) {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target
       if (t instanceof HTMLInputElement || t instanceof HTMLSelectElement || t instanceof HTMLTextAreaElement) return
-      if (/^[0-4]$/.test(e.key)) void save(Number(e.key), false)
+      if (/^d$/.test(e.key) && Number(e.key) <= MAX_GRADE) void save(Number(e.key), false)
       else if (e.key === 'x' || e.key === 'X') void save(null, true)
       else if (e.key === 'r' || e.key === 'R') toggleReport()
       else if (e.key === 'ArrowRight') setPos(Math.min(idx + 1, list.length - 1))
@@ -93,7 +99,7 @@ export function GradeView({ photos, grades, name, onGraded }: Props) {
                 setPos(0)
               }}
             />
-            안 매긴 사진만
+            2차 채점할 사진만 (아직 한 명만 매긴 것)
           </label>
           {list.length > 0 && (
             <div className="ml-auto flex items-center gap-2">
@@ -130,8 +136,8 @@ export function GradeView({ photos, grades, name, onGraded }: Props) {
         ) : (
           <div className="flex min-h-0 flex-1 items-center justify-center rounded-lg border border-dashed border-gray-300 p-8 text-center text-gray-700">
             {sorted.length === 0
-              ? '등급을 매길 사진이 없습니다. 연습용 사진은 여기서 빠집니다.'
-              : '다 매겼습니다. "안 매긴 사진만"을 끄면 매긴 등급을 고칠 수 있습니다.'}
+              ? '등급을 매길 사진이 없습니다. 연습용 사진과 이미 두 명이 매긴 사진은 여기서 빠집니다.'
+              : '2차 채점할 사진이 없습니다. "2차 채점할 사진만"을 끄면 매긴 등급을 고칠 수 있습니다.'}
           </div>
         )}
         <p className="text-gray-700">
@@ -189,7 +195,7 @@ export function GradeView({ photos, grades, name, onGraded }: Props) {
             </span>
           </button>
         </div>
-        <p className="text-gray-700">키보드: 숫자 0~4, X(판단 불가), R(신고 필요), ←·→(이동)</p>
+        <p className="text-gray-700">키보드: 숫자 0~{MAX_GRADE}, X(판단 불가), R(신고 필요), ←·→(이동)</p>
         {error && <p className="rounded-md bg-red-50 px-3 py-2 text-red-800">{error}</p>}
       </div>
     </div>

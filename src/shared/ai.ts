@@ -1,6 +1,6 @@
 import { expandBox } from './box'
 import { CONFIG } from './config'
-import { GRADE_RULES, GRADES, REPORT, UNUSABLE } from './grades'
+import { GRADE_RULES, GRADES, MAX_GRADE, REPORT, UNUSABLE } from './grades'
 import { functionUrl, PUBLIC_KEY, sb } from './supabase'
 import { rowBox, type AiGradeRow, type Box, type PhotoRow } from './types'
 
@@ -8,8 +8,8 @@ import { rowBox, type AiGradeRow, type Box, type PhotoRow } from './types'
 // 기본은 Supabase 서버 함수(grade-photo)가 비밀값으로 둔 키로 대신 부른다.
 // PC 뷰어에 키를 직접 넣어 둔 경우에만 그 브라우저에서 바로 부른다.
 
-/** 등급 기준이나 지시문을 바꾸면 이 값을 올려서 결과를 구분한다 (v3: 덮개·주변 중 더 심한 쪽 + 신고 표시, 주변 범위 20%) */
-export const PROMPT_VERSION = 'v3'
+/** 등급 기준이나 지시문을 바꾸면 이 값을 올려서 결과를 구분한다 (v4: 덮개·주변 중 더 심한 쪽, 4단계 + 신고 표시, 주변 범위 20%) */
+export const PROMPT_VERSION = 'v4'
 
 const KEY_STORAGE = 'bitmul-camera:gemini-key'
 
@@ -43,7 +43,7 @@ const SCHEMA = {
     unusable: { type: 'BOOLEAN', description: '흐리거나 너무 멀어서 쓰레기 양을 알 수 없으면 true' },
     grate_percent: { type: 'INTEGER', description: '빨간 박스 안(덮개)을 쓰레기·낙엽·흙·고무판 등이 위에서 가린 비율(0~100)' },
     around_percent: { type: 'INTEGER', description: '빨간 박스 바깥 주변을 쓰레기·낙엽·흙이 덮은 비율(0~100)' },
-    grade: { type: 'INTEGER', description: '쓰레기 등급 0~4. 두 비율 중 큰 값으로 정한다' },
+    grade: { type: 'INTEGER', description: `쓰레기 등급 0~${MAX_GRADE}. 두 비율 중 큰 값으로 정한다` },
     needs_report: { type: 'BOOLEAN', description: '덮개 아래(틈으로 보이는 안쪽)에 쓰레기가 쌓여 지자체 신고가 필요하면 true' },
     confidence: { type: 'NUMBER', description: '이 판정을 얼마나 확신하는지 0~1' },
     causes: { type: 'ARRAY', items: { type: 'STRING', enum: [...CAUSES] }, description: '쌓인 쓰레기의 종류' },
@@ -271,7 +271,7 @@ function normalize(raw: Record<string, unknown>): AiResult {
   const isDrain = raw.is_drain !== false
   const unusable = raw.unusable === true || !isDrain
   const gradeNum = Math.round(Number(raw.grade))
-  const grade = unusable || !Number.isFinite(gradeNum) ? null : Math.min(4, Math.max(0, gradeNum))
+  const grade = unusable || !Number.isFinite(gradeNum) ? null : Math.min(MAX_GRADE, Math.max(0, gradeNum))
   const pct = (v: unknown) => {
     const n = Math.round(Number(v))
     return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 0

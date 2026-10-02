@@ -61,13 +61,16 @@ export function nextCode(code: string): string {
   return m[1] + n
 }
 
-/** 지난 사진을 보고 다음 번호와 단계를 미리 채운다: 청소 전 → 같은 번호 청소 후 → 다음 번호 청소 전 */
+/**
+ * 다음 번호와 단계를 미리 채운다. 대부분 청소 없이 새 빗물받이를 찍으므로 항상 '다음 번호 · 청소 전'.
+ * 같은 빗물받이의 청소 후·재방문은 찍는 사람이 최근 번호와 단계를 직접 고른다
+ */
 export function suggestNext(): { code: string; phase: Phase; reason: string } {
   const last = load().last
   if (!last) return { code: `${CONFIG.drainCodePrefix}01`, phase: 'before', reason: '' }
-  if (last.phase === 'before')
-    return { code: last.code, phase: 'after', reason: `지난 사진이 ${last.code} 청소 전이라 같은 번호의 청소 후로 채웠습니다.` }
-  if (last.phase === 'after')
-    return { code: nextCode(last.code), phase: 'before', reason: `지난 사진이 ${last.code} 청소 후라 다음 번호로 채웠습니다.` }
-  return { code: nextCode(last.code), phase: 'revisit', reason: `지난 사진이 ${last.code} 재방문이라 다음 번호로 채웠습니다.` }
+  return {
+    code: nextCode(last.code),
+    phase: 'before',
+    reason: `지난 번호(${last.code}) 다음으로 채웠습니다. 같은 빗물받이의 청소 후·재방문이면 번호와 단계를 바꿔 주세요.`,
+  }
 }

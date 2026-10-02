@@ -20,7 +20,7 @@ export type Shot = {
 /** mine: 찍은 사람이 현장에서 매기는 1차 등급 */
 export type ReviewResult = { box: Box; code: string; phase: Phase; memo: string; isTest: boolean; mine: GradeInput }
 
-/** 등급 버튼 값: 0~4 또는 판단 불가 */
+/** 등급 버튼 값: 등급 숫자 또는 판단 불가 */
 type Pick = number | 'X' | null
 
 type Props = {
