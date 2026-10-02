@@ -92,7 +92,7 @@ function Shooter({ name }: { name: string }) {
         device: navigator.userAgent.slice(0, 200),
       }
       await addPending({ id, photo, thumb, row, addedAt: Date.now(), grade: r.mine })
-      rememberShot(r.code, r.phase)
+      rememberShot(r.code)
       if (getAiField()) {
         // 찍고 바로 AI 채점: 사진은 결과 화면이 끝날 때까지 들고 있는다
         setAiJob({ id, code: r.code, phase: r.phase, shot, box: r.box, mine: r.mine })
