@@ -1,1 +1,0 @@
-if('serviceWorker' in navigator) {window.addEventListener('load', () => {navigator.serviceWorker.register('/bitmul-camera/sw.js', { scope: '/bitmul-camera/' })})}
