@@ -131,6 +131,7 @@ function Shooter({ name }: { name: string }) {
       {stage === 'review' && shot && (
         <Review
           shot={shot}
+          name={name}
           locationText={locationText}
           saving={saving}
           onRetake={() => {

@@ -1,4 +1,3 @@
-import { CONFIG } from '../shared/config'
 import type { Phase } from '../shared/types'
 
 // 폰마다 기억해 두는 작은 설정. 지워져도 기본값으로 돌아갈 뿐이다.
@@ -53,7 +52,7 @@ export function recentCodes() {
   return load().recentCodes
 }
 
-/** YG-07 → YG-08 처럼 끝 숫자를 하나 올린다. 숫자가 없으면 그대로 */
+/** 한재욱-07 → 한재욱-08 처럼 끝 숫자를 하나 올린다. 숫자가 없으면 그대로 */
 export function nextCode(code: string): string {
   const m = code.match(/^(.*?)(\d+)$/)
   if (!m) return code
@@ -62,12 +61,16 @@ export function nextCode(code: string): string {
 }
 
 /**
- * 다음 번호와 단계를 미리 채운다. 대부분 청소 없이 새 빗물받이를 찍으므로 항상 '다음 번호 · 청소 전'.
+ * 다음 번호와 단계를 미리 채운다. 번호는 찍는 사람 이름 + 순번(한재욱-01)이라 사람끼리 겹치지 않는다.
+ * 대부분 청소 없이 새 빗물받이를 찍으므로 항상 '다음 번호 · 청소 전'.
  * 같은 빗물받이의 청소 후·재방문은 찍는 사람이 최근 번호와 단계를 직접 고른다
  */
-export function suggestNext(): { code: string; phase: Phase; reason: string } {
+export function suggestNext(name: string): { code: string; phase: Phase; reason: string } {
   const last = load().last
-  if (!last) return { code: `${CONFIG.drainCodePrefix}01`, phase: 'before', reason: '' }
+  // 저장할 때 번호를 대문자로 바꾸므로 영문 이름도 대문자로 맞춘다
+  const prefix = `${name.trim().toUpperCase()}-`
+  // 처음 찍거나, 이 폰에서 다른 이름으로 찍던 번호면 내 이름 01부터
+  if (!last || !last.code.startsWith(prefix)) return { code: `${prefix}01`, phase: 'before', reason: '' }
   return {
     code: nextCode(last.code),
     phase: 'before',

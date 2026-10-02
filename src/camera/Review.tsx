@@ -29,10 +29,12 @@ type Props = {
   saving: boolean
   onRetake: () => void
   onSave: (r: ReviewResult) => void
+  /** 찍는 사람 이름. 빗물받이 번호 앞부분이 된다 */
+  name: string
 }
 
-export function Review({ shot, locationText, saving, onRetake, onSave }: Props) {
-  const initial = useMemo(() => suggestNext(), [])
+export function Review({ shot, locationText, saving, onRetake, onSave, name }: Props) {
+  const initial = useMemo(() => suggestNext(name), [name])
   const [box, setBox] = useState<Box>({ ...CONFIG.guide })
   const [code, setCode] = useState(initial.code)
   const [phase, setPhase] = useState<Phase>(initial.phase)

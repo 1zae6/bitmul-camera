@@ -48,8 +48,6 @@ export const CONFIG = {
   answerKeyGoal: 100,
   /** Supabase 저장소 버킷 이름 (supabase/schema.sql 과 같아야 한다) */
   bucket: 'drain-photos',
-  /** 빗물받이 번호 앞부분 기본값 (역곡동 = YG) */
-  drainCodePrefix: 'YG-',
   /** 사진 보기용 임시 주소 유효 시간(초) */
   signedUrlSeconds: 3600,
   /** PC 뷰어의 AI 채점 (Gemini). 모델 이름은 Gemini API 문서 기준(2026-10 확인) */
