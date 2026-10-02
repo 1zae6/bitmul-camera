@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '../shared/auth'
 import { CONFIG } from '../shared/config'
 import { LoginScreen } from '../shared/LoginScreen'
+import { holdUpdates } from '../shared/pwa'
 import { sb } from '../shared/supabase'
 import { PHASE_LABEL } from '../shared/types'
 import { AiCheck, type AiJob } from './AiCheck'
@@ -42,6 +43,9 @@ function Shooter({ name }: { name: string }) {
   const counts = useCounts(name, queue.pending, queue.uploading)
   const fix = freshFix(geo.fix, CONFIG.gpsMaxAgeMs)
   const locationText = geoText(geo.status, fix)
+
+  // 저장 화면·AI 결과 화면에서는 새 버전으로 새로 고치지 않는다
+  useEffect(() => holdUpdates(stage === 'review' || stage === 'ai'), [stage])
 
   useEffect(() => {
     if (!toast) return

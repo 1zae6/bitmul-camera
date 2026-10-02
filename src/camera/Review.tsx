@@ -35,8 +35,16 @@ type Props = {
 /** 사진 수집 단계라 재방문은 고르지 않는다. 같은 빗물받이를 다시 찍으면 같은 번호에 청소 전·후만 고른다 */
 const SHOOT_PHASES = PHASES.filter((p) => p.value !== 'revisit')
 
-/** 빗물받이 번호는 찍는 사람이 '이름-번호'로 직접 적는다 (예: 한재욱-1). 같은 빗물받이를 다시 찍으면 같은 번호를 적는다 */
-const CODE_PATTERN = /^S+-d+$/
+/**
+ * 빗물받이 번호는 찍는 사람이 '이름-번호'로 직접 적는다 (예: 한재욱-1). 같은 빗물받이를 다시 찍으면 같은 번호를 적는다.
+ * 폰 자판마다 하이픈 모양이 달라서(–, —, －, 한글 ㅡ) 이름과 번호 사이는 띄어 쓰거나 붙여 써도 '-' 하나로 맞추고,
+ * 영문은 대문자로 바꿔 같은 번호가 다르게 저장되지 않게 한다. 끝이 숫자가 아니면 null
+ */
+export function normalizeCode(raw: string): string | null {
+  // 이름 부분은 하이픈·공백이 아닌 글자로 끝나야 한다 ('-3'처럼 이름이 없으면 null)
+  const m = raw.trim().toUpperCase().match(/^(.*?[^\s\-‐‑‒–—―−－ㅡ])\s*[\-‐‑‒–—―−－ㅡ]*\s*(\d+)$/)
+  return m ? `${m[1]}-${m[2]}` : null
+}
 
 export function Review({ shot, locationText, saving, onRetake, onSave, name }: Props) {
   const [box, setBox] = useState<Box>({ ...CONFIG.guide })
@@ -60,11 +68,10 @@ export function Review({ shot, locationText, saving, onRetake, onSave, name }: P
           : ''
 
   const submit = () => {
-    // 하이픈 앞뒤 공백은 지우고, 영문은 대문자로 맞춰 같은 번호가 다르게 저장되지 않게 한다
-    const c = code.trim().replace(/s*-s*/g, '-').toUpperCase()
     if (pick === null) return setError('내 등급을 골라 주세요.')
-    if (!c) return setError(`빗물받이 번호를 적어 주세요. 예: ${name}-1`)
-    if (!CODE_PATTERN.test(c)) return setError(`'이름-번호' 모양으로 적어 주세요. 예: ${name}-1`)
+    if (!code.trim()) return setError(`빗물받이 번호를 적어 주세요. 예: ${name}-1`)
+    const c = normalizeCode(code)
+    if (!c) return setError(`번호는 이름 뒤에 숫자로 적어 주세요. 예: ${name}-1`)
     setError('')
     const mine: GradeInput =
       pick === 'X' ? { grade: null, unusable: true, needs_report: report } : { grade: pick, unusable: false, needs_report: report }
@@ -189,9 +196,10 @@ export function Review({ shot, locationText, saving, onRetake, onSave, name }: P
             연습용
           </label>
         </div>
-        {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-[15px] text-red-800">{error}</p>}
       </div>
 
+      {/* 오류는 저장 버튼 바로 위에 띄운다. 입력 칸 아래쪽에 두면 스크롤에 가려 저장이 안 되는 이유가 안 보인다 */}
+      {error && <p className="mx-4 mt-2 rounded-lg bg-red-50 px-3 py-2 text-[15px] font-semibold text-red-800">{error}</p>}
       <div
         className="grid grid-cols-[1fr_2fr] gap-3 border-t border-gray-200 px-4 pt-3"
         style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 12px)' }}

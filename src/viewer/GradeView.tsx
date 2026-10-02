@@ -73,7 +73,7 @@ export function GradeView({ photos, grades, name, onGraded }: Props) {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target
       if (t instanceof HTMLInputElement || t instanceof HTMLSelectElement || t instanceof HTMLTextAreaElement) return
-      if (/^d$/.test(e.key) && Number(e.key) <= MAX_GRADE) void save(Number(e.key), false)
+      if (/^\d$/.test(e.key) && Number(e.key) <= MAX_GRADE) void save(Number(e.key), false)
       else if (e.key === 'x' || e.key === 'X') void save(null, true)
       else if (e.key === 'r' || e.key === 'R') toggleReport()
       else if (e.key === 'ArrowRight') setPos(Math.min(idx + 1, list.length - 1))
