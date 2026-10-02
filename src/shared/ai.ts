@@ -8,8 +8,8 @@ import { rowBox, type AiGradeRow, type Box, type PhotoRow } from './types'
 // 기본은 Supabase 서버 함수(grade-photo)가 비밀값으로 둔 키로 대신 부른다.
 // PC 뷰어에 키를 직접 넣어 둔 경우에만 그 브라우저에서 바로 부른다.
 
-/** 등급 기준이나 지시문을 바꾸면 이 값을 올려서 결과를 구분한다 (v4: 덮개·주변 중 더 심한 쪽, 4단계 + 신고 표시, 주변 범위 20%) */
-export const PROMPT_VERSION = 'v4'
+/** 등급 기준이나 지시문을 바꾸면 이 값을 올려서 결과를 구분한다 (v5: 덮개·주변 중 더 심한 쪽, 깨끗함 5% 미만 + 3분의 1씩 3단계 + 신고 표시, 주변 범위 20%) */
+export const PROMPT_VERSION = 'v5'
 
 const KEY_STORAGE = 'bitmul-camera:gemini-key'
 

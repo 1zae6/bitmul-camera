@@ -309,7 +309,7 @@ export function AiView({ photos, grades, name, onSelect, ai }: Props) {
         )}
         <p className="text-gray-700">
           키는 GitHub나 사이트 코드에 들어가지 않습니다. 무료 구간에 보낸 사진은 구글 제품 개선에 쓰일 수 있으니, 사람 얼굴·차량 번호판이 나온
-          사진은 연습용으로 바꿔 빼 주세요. 지금 기준은 {PROMPT_VERSION}(덮개·주변 중 더 심한 쪽, 4단계 + 신고 필요)입니다.
+          사진은 연습용으로 바꿔 빼 주세요. 지금 기준은 {PROMPT_VERSION}(덮개·주변 중 더 심한 쪽, 깨끗함 + 3분의 1씩 3단계 + 신고 필요)입니다.
         </p>
       </section>
 
