@@ -32,6 +32,9 @@ type Props = {
   name: string
 }
 
+/** 사진 수집 단계라 재방문은 고르지 않는다. 같은 빗물받이를 다시 찍으면 같은 번호에 청소 전·후만 고른다 */
+const SHOOT_PHASES = PHASES.filter((p) => p.value !== 'revisit')
+
 /** 빗물받이 번호는 찍는 사람이 '이름-번호'로 직접 적는다 (예: 한재욱-1). 같은 빗물받이를 다시 찍으면 같은 번호를 적는다 */
 const CODE_PATTERN = /^S+-d+$/
 
@@ -156,8 +159,8 @@ export function Review({ shot, locationText, saving, onRetake, onSave, name }: P
 
         <div>
           <p className="text-[15px] font-semibold text-gray-900">단계</p>
-          <div className="mt-1 grid grid-cols-3 gap-2">
-            {PHASES.map((p) => (
+          <div className="mt-1 grid grid-cols-2 gap-2">
+            {SHOOT_PHASES.map((p) => (
               <button
                 key={p.value}
                 onClick={() => setPhase(p.value)}
