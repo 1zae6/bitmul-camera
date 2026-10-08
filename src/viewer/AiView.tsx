@@ -46,6 +46,11 @@ export function AiView({ photos, grades, name, onSelect, ai }: Props) {
     return humanTruth(grades.filter((g) => ids.has(g.photo_id)))
   }, [grades, real])
   const agreedCount = [...truth.values()].filter((t) => t.raters >= 2).length
+  const gradesByPhoto = useMemo(() => {
+    const m = new Map<string, GradeRow[]>()
+    for (const g of grades) m.set(g.photo_id, [...(m.get(g.photo_id) ?? []), g])
+    return m
+  }, [grades])
 
   const [key, setKey] = useState(loadKey)
   const [keyDraft, setKeyDraft] = useState('')
@@ -226,16 +231,20 @@ export function AiView({ photos, grades, name, onSelect, ai }: Props) {
     const rows = runRows.map((r) => {
       const p = photoById.get(r.photo_id)
       const t = truth.get(r.photo_id)
+      const pair = raterPair(p, gradesByPhoto.get(r.photo_id) ?? [])
       return [
-        r.photo_id, p?.drain_code, p ? PHASE_LABEL[p.phase] : '', t?.cat ?? '', t?.raters ?? 0,
-        t?.report ?? '', r.grade, r.unusable, r.needs_report, r.grate_percent, r.around_percent, r.covered_percent, r.confidence,
-        (r.causes ?? []).join('|'), r.reason, r.latency_ms,
+        r.photo_id, p?.drain_code, p ? PHASE_LABEL[p.phase] : '', pair.shooterText, pair.othersText, pair.agreeText,
+        t?.cat ?? '', t?.raters ?? 0, t?.report ?? '', r.grade, r.unusable, r.needs_report, r.grate_percent, r.around_percent,
+        r.covered_percent, r.confidence, (r.causes ?? []).join('|'), r.reason, r.latency_ms,
       ]
     })
     downloadCsv(
       `AI채점_${today()}_${selected.model}.csv`,
       toCsv(
-        ['photo_id', '빗물받이번호', '단계', '사람정답', '매긴사람수', '사람신고', 'AI등급', 'AI판단불가', 'AI신고', '덮개막힘', '주변쓰레기', '쓰레기면적', '확신도', '원인', '이유', '응답ms'],
+        [
+          'photo_id', '빗물받이번호', '단계', '찍은사람등급', '채점자등급', '채점일치', '사람정답', '매긴사람수', '사람신고',
+          'AI등급', 'AI판단불가', 'AI신고', '덮개막힘', '주변쓰레기', '쓰레기면적', '확신도', '원인', '이유', '응답ms',
+        ],
         rows,
       ),
     )
@@ -501,7 +510,7 @@ export function AiView({ photos, grades, name, onSelect, ai }: Props) {
                 비교할 사람 정답이 없습니다. 등급 매기기 탭에서 사람이 먼저 매기거나, 위의 '두 사람 이상 일치한 사진만 비교'를 꺼 보세요.
               </p>
             )}
-            <AnswerTable rows={runRows} photoById={photoById} truth={truth} conflicted={conflicted} onSelect={onSelect} />
+            <AnswerTable rows={runRows} photoById={photoById} truth={truth} gradesByPhoto={gradesByPhoto} onSelect={onSelect} />
           </>
         )}
       </section>
@@ -517,17 +526,34 @@ const FILTERS: { value: Filter; label: string }[] = [
 ]
 
 /** 사진마다 AI 가 답한 내용 전부. JSON 버튼을 누르면 Gemini 답 모양 그대로 보인다 */
+/**
+ * 찍은 사람이 현장에서 매긴 1차 등급과, 다른 사람이 PC에서 매긴 2차 등급을 나눠 비교한다.
+ * 예전 사진처럼 찍은 사람의 등급이 없거나 2차 채점 전이면 일치 여부는 '-'
+ */
+function raterPair(photo: PhotoRow | undefined, list: GradeRow[]) {
+  const shooter = photo ? list.find((g) => g.grader === photo.photographer) : undefined
+  const others = list.filter((g) => g !== shooter)
+  const agree = shooter && others.length ? others.every((g) => catOf(g.grade, g.unusable) === catOf(shooter.grade, shooter.unusable)) : null
+  const reportDiff = Boolean(shooter) && others.some((g) => g.needs_report !== shooter!.needs_report)
+  return {
+    shooterText: shooter ? gradeText(shooter.grade, shooter.unusable, shooter.needs_report) : '-',
+    othersText: others.length ? others.map((g) => gradeText(g.grade, g.unusable, g.needs_report)).join(' / ') : '채점 전',
+    agree,
+    agreeText: agree === null ? '-' : `${agree ? '일치' : '불일치'}${reportDiff ? ' · 신고 다름' : ''}`,
+  }
+}
+
 function AnswerTable({
   rows,
   photoById,
   truth,
-  conflicted,
+  gradesByPhoto,
   onSelect,
 }: {
   rows: AiGradeRow[]
   photoById: Map<string, PhotoRow>
   truth: Map<string, Truth>
-  conflicted: Set<string>
+  gradesByPhoto: Map<string, GradeRow[]>
   onSelect: (id: string) => void
 }) {
   const [filter, setFilter] = useState<Filter>('all')
@@ -542,12 +568,6 @@ function AnswerTable({
     })
     .sort((a, b) => (photoById.get(a.photo_id)?.taken_at ?? '').localeCompare(photoById.get(b.photo_id)?.taken_at ?? ''))
   const urls = useSignedUrls(list.slice(0, 200).map((r) => photoById.get(r.photo_id)?.thumb_path ?? '').filter(Boolean))
-
-  const humanText = (id: string) => {
-    const t = truth.get(id)
-    if (t) return `${t.cat === 'X' ? '판단 불가' : `${t.cat}등급`}${t.raters < 2 ? ' (1명)' : ''}`
-    return conflicted.has(id) ? '사람끼리 다름' : '-'
-  }
 
   return (
     <div>
@@ -572,7 +592,9 @@ function AnswerTable({
               <tr className="border-b border-gray-300 text-gray-700">
                 <th className="whitespace-nowrap py-1.5 pr-2 font-medium">사진</th>
                 <th className="whitespace-nowrap py-1.5 pr-2 font-medium">번호·단계</th>
-                <th className="whitespace-nowrap py-1.5 pr-2 font-medium">사람</th>
+                <th className="whitespace-nowrap py-1.5 pr-2 font-medium">찍은 사람 등급</th>
+                <th className="whitespace-nowrap py-1.5 pr-2 font-medium">채점자 등급</th>
+                <th className="whitespace-nowrap py-1.5 pr-2 font-medium">채점 일치</th>
                 <th className="whitespace-nowrap py-1.5 pr-2 font-medium">AI</th>
                 <th className="whitespace-nowrap py-1.5 pr-2 font-medium">신고(사람/AI)</th>
                 <th className="whitespace-nowrap py-1.5 pr-2 font-medium">쓰레기 비율</th>
@@ -589,6 +611,7 @@ function AnswerTable({
                 const miss = Boolean(t) && t!.cat !== catOf(r.grade, r.unusable)
                 const low = r.unusable || (r.confidence ?? 0) < CONFIG.ai.reviewConfidence
                 const open = openId === r.photo_id
+                const pair = raterPair(p, gradesByPhoto.get(r.photo_id) ?? [])
                 return (
                   <Fragment key={r.photo_id}>
                     <tr className="border-b border-gray-200 align-top">
@@ -602,7 +625,13 @@ function AnswerTable({
                           {p ? `${p.drain_code} · ${PHASE_LABEL[p.phase]}` : '(지워진 사진)'}
                         </button>
                       </td>
-                      <td className="whitespace-nowrap py-1.5 pr-2 text-gray-800">{humanText(r.photo_id)}</td>
+                      <td className="whitespace-nowrap py-1.5 pr-2 text-gray-800">{pair.shooterText}</td>
+                      <td className="whitespace-nowrap py-1.5 pr-2 text-gray-800">{pair.othersText}</td>
+                      <td
+                        className={`whitespace-nowrap py-1.5 pr-2 ${pair.agree === null ? 'text-gray-800' : pair.agree ? 'font-semibold text-green-700' : 'font-semibold text-red-700'}`}
+                      >
+                        {pair.agreeText}
+                      </td>
                       <td className={`whitespace-nowrap py-1.5 pr-2 ${miss ? 'font-semibold text-red-700' : 'text-gray-900'}`}>{gradeText(r.grade, r.unusable)}</td>
                       <td className={`whitespace-nowrap py-1.5 pr-2 ${t && t.report !== null && t.report !== Boolean(r.needs_report) ? 'font-semibold text-red-700' : 'text-gray-800'}`}>
                         {t ? (t.report === null ? '다름' : t.report ? '신고' : '-') : '-'} / {r.needs_report ? '신고' : '-'}
@@ -619,7 +648,7 @@ function AnswerTable({
                     </tr>
                     {open && (
                       <tr className="border-b border-gray-200">
-                        <td colSpan={10} className="pb-2">
+                        <td colSpan={12} className="pb-2">
                           <pre className="overflow-x-auto rounded bg-gray-50 p-2 text-xs text-gray-900">{answerJson(r)}</pre>
                         </td>
                       </tr>
