@@ -49,6 +49,8 @@ export type PhotoRow = {
   brightness: number | null
   is_test: boolean
   device: string | null
+  /** 손전등을 켜고 찍었는지. supabase/schema.sql 8절의 열을 만들기 전 DB 에는 없다 */
+  torch?: boolean
 }
 
 /** public.grades 테이블 한 줄. 판단 불가면 grade 는 null. needs_report 는 등급과 별개인 '신고 필요' 표시 */

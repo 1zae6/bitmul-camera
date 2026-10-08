@@ -69,9 +69,14 @@ async function uploadOne(p: Pending) {
   if (a.error) throw a.error
   const b = await bucket.upload(thumbPath, p.thumb, { contentType: 'image/jpeg', upsert: true })
   if (b.error) throw b.error
-  const { error } = await sb()
-    .from('photos')
-    .upsert({ ...p.row, id: p.id, storage_path: path, thumb_path: thumbPath })
+  const row = { ...p.row, id: p.id, storage_path: path, thumb_path: thumbPath }
+  let { error } = await sb().from('photos').upsert(row)
+  // 손전등 열(supabase/schema.sql 8절)을 아직 만들지 않은 DB면, 사진이 막히지 않게 그 값만 빼고 다시 올린다
+  if (error && row.torch !== undefined && /torch/.test(error.message)) {
+    const withoutTorch = { ...row }
+    delete withoutTorch.torch
+    ;({ error } = await sb().from('photos').upsert(withoutTorch))
+  }
   if (error) throw error
   if (p.grade) {
     const g = await sb()

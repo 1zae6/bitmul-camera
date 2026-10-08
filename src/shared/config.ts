@@ -33,6 +33,15 @@ export const CONFIG = {
     minTilt: -15,
     maxTilt: 60,
   },
+  /**
+   * 어두울 때 손전등(폰 뒷면 불빛). 안드로이드 크롬 등 지원하는 폰에서만 켤 수 있다.
+   * 밝기가 quality.minBrightness 아래로 이 시간 동안 이어지면 촬영 화면마다 한 번 자동으로 켠다
+   */
+  torch: {
+    autoOnAfterMs: 1000,
+    /** '손전등을 켰습니다' 같은 안내를 보여 주는 시간 */
+    noteMs: 3000,
+  },
   /** 찍은 뒤 품질 경고 */
   quality: {
     analysisWidth: 320,

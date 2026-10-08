@@ -131,3 +131,6 @@ alter table public.ai_grades add column if not exists needs_report boolean;
 --    AI 가 두 비율을 따로 답하므로 따로 저장한다. covered_percent 에는 둘 중 큰 값이 들어간다.
 alter table public.ai_grades add column if not exists grate_percent smallint;
 alter table public.ai_grades add column if not exists around_percent smallint;
+
+-- 8. 손전등 (2026-10-08 추가): 어두울 때 폰 손전등을 켜고 찍었는지. 빛 조건별 AI 정확도를 따로 보려고 남긴다.
+alter table public.photos add column if not exists torch boolean not null default false;

@@ -117,7 +117,10 @@ export function PhotoDetail({ photo, myGrade, aiRows, runs, onClose, onUpdated, 
           )}
         </dd>
         <dt className="text-gray-700">촬영 방식</dt>
-        <dd>{CAPTURE_MODE_LABEL[photo.capture_mode]}</dd>
+        <dd>
+          {CAPTURE_MODE_LABEL[photo.capture_mode]}
+          {photo.torch && ' · 손전등 켜고 찍음'}
+        </dd>
         <dt className="text-gray-700">선명도·밝기</dt>
         <dd>
           {photo.sharpness ?? '-'} · {photo.brightness ?? '-'}

@@ -8,7 +8,14 @@ import { MotionWatcher } from './motion'
 import { getAutoCapture, setAutoCapture } from './prefs'
 import { laplacianVariance, meanAbsDiff, meanOf, sampleRegion } from './quality'
 
-export type Captured = { canvas: HTMLCanvasElement; mode: CaptureMode }
+/** torch: 찍는 순간 손전등이 켜져 있었는지 */
+export type Captured = { canvas: HTMLCanvasElement; mode: CaptureMode; torch: boolean }
+
+/** 손전등 버튼 상태. unsupported 면 기본 카메라 앱(플래시 사용 가능)을 안내한다 */
+type TorchUi = 'unsupported' | 'off' | 'on'
+
+/** 표준 타입에는 아직 없는 손전등 제약 */
+type TorchConstraint = MediaTrackConstraintSet & { torch?: boolean }
 
 type Live = {
   /** null = 아직 판단 중 */
@@ -52,6 +59,17 @@ export function CameraView({ active, demo, locationText, onCapture, onClose }: P
   const [flash, setFlash] = useState(false)
   const [note, setNote] = useState('')
 
+  // 손전등: 지원하는 폰(주로 안드로이드 크롬)에서만 켤 수 있다.
+  // 어두우면 촬영 화면마다 한 번 자동으로 켜고, 사람이 직접 켜고 끄면 그 뒤로는 자동으로 건드리지 않는다
+  const [track, setTrack] = useState<MediaStreamTrack | null>(null)
+  const [torchSupported, setTorchSupported] = useState(false)
+  const [torchWanted, setTorchWanted] = useState(false)
+  const torchActive = useRef(false)
+  const torchTouched = useRef(false)
+  const autoTorchDone = useRef(false)
+  const torchSupportedRef = useRef(false)
+  torchSupportedRef.current = torchSupported
+
   const motion = useRef(new MotionWatcher())
   const capturing = useRef(false)
   const autoRef = useRef(autoOn)
@@ -79,6 +97,7 @@ export function CameraView({ active, demo, locationText, onCapture, onClose }: P
           return
         }
         stream = s
+        setTrack(s.getVideoTracks()[0] ?? null)
         const v = videoRef.current
         if (v) {
           v.srcObject = s
@@ -91,6 +110,51 @@ export function CameraView({ active, demo, locationText, onCapture, onClose }: P
       stream?.getTracks().forEach((t) => t.stop())
     }
   }, [attempt])
+
+  const showNote = (text: string) => {
+    setNote(text)
+    window.setTimeout(() => setNote((n) => (n === text ? '' : n)), CONFIG.torch.noteMs)
+  }
+
+  // 손전등을 켤 수 있는 카메라인지 (영상이 나오기 시작한 뒤 다시 확인한다)
+  const detectTorch = (t: MediaStreamTrack | null) => {
+    const caps = t?.getCapabilities?.() as (MediaTrackCapabilities & { torch?: boolean }) | undefined
+    setTorchSupported(Boolean(caps?.torch))
+  }
+  useEffect(() => detectTorch(track), [track])
+
+  // 원하는 상태를 카메라에 반영한다. 저장 화면으로 넘어가 촬영 화면이 숨으면 끄고, 돌아오면 다시 켠다
+  useEffect(() => {
+    if (!track || !torchSupported) return
+    const on = torchWanted && active
+    const c: TorchConstraint = { torch: on }
+    track
+      .applyConstraints({ advanced: [c] })
+      .then(() => {
+        torchActive.current = on
+      })
+      .catch(() => {
+        torchActive.current = false
+        if (!on) return
+        setTorchSupported(false)
+        setTorchWanted(false)
+        showNote("이 폰에서는 손전등을 켜지 못했습니다. '기본 카메라'로 찍으면 플래시를 쓸 수 있습니다.")
+      })
+  }, [track, torchSupported, torchWanted, active])
+
+  const autoTorch = () => {
+    if (!torchSupportedRef.current || torchTouched.current || autoTorchDone.current) return
+    autoTorchDone.current = true
+    setTorchWanted(true)
+    showNote('어두워서 손전등을 켰습니다')
+  }
+  const autoTorchRef = useRef(autoTorch)
+  autoTorchRef.current = autoTorch
+
+  const toggleTorch = () => {
+    torchTouched.current = true
+    setTorchWanted((w) => !w)
+  }
 
   // 움직임·기울기 센서
   useEffect(() => {
@@ -115,7 +179,7 @@ export function CameraView({ active, demo, locationText, onCapture, onClose }: P
     setFlash(true)
     window.setTimeout(() => setFlash(false), 160)
     setLive((l) => ({ ...l, countdown: 0 }))
-    captureRef.current({ canvas, mode })
+    captureRef.current({ canvas, mode, torch: torchActive.current })
   }
   const shootRef = useRef(shoot)
   shootRef.current = shoot
@@ -128,6 +192,7 @@ export function CameraView({ active, demo, locationText, onCapture, onClose }: P
     let prev: Float32Array | null = null
     let lastUnstable = performance.now()
     let okSince: number | null = null
+    let darkSince: number | null = null
 
     const timer = window.setInterval(() => {
       const v = videoRef.current
@@ -155,6 +220,14 @@ export function CameraView({ active, demo, locationText, onCapture, onClose }: P
       const sharp = sharpness >= a.minSharpness
       const bright = brightness >= CONFIG.quality.minBrightness
       const allOk = still && tilt !== 'low' && sharp && bright
+
+      // 어두운 상태가 이어지면 손전등을 한 번 자동으로 켠다
+      if (!bright) {
+        darkSince ??= now
+        if (now - darkSince >= CONFIG.torch.autoOnAfterMs) autoTorchRef.current()
+      } else {
+        darkSince = null
+      }
 
       let countdown = 0
       if (autoRef.current && allOk) {
@@ -186,6 +259,8 @@ export function CameraView({ active, demo, locationText, onCapture, onClose }: P
   const onVideoSize = () => {
     const v = videoRef.current
     if (v && v.videoWidth) setVideo({ w: v.videoWidth, h: v.videoHeight })
+    // 일부 폰은 영상이 나온 뒤에야 손전등 지원 여부를 알려 준다
+    if (!torchSupported) detectTorch(track)
   }
 
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -194,7 +269,8 @@ export function CameraView({ active, demo, locationText, onCapture, onClose }: P
     if (!f) return
     try {
       const canvas = await fileToCanvas(f)
-      captureRef.current({ canvas, mode: 'file' })
+      // 기본 카메라 앱의 플래시 사용 여부는 알 수 없다
+      captureRef.current({ canvas, mode: 'file', torch: false })
     } catch {
       setNote('사진을 읽지 못했습니다. 다시 골라 주세요.')
     }
@@ -207,6 +283,7 @@ export function CameraView({ active, demo, locationText, onCapture, onClose }: P
     })
   }
 
+  const torchUi: TorchUi = !torchSupported ? 'unsupported' : torchWanted ? 'on' : 'off'
   const rect = containRect(size.width, size.height, video.w, video.h)
   const ready = !error && video.w > 0
   const allGood = live.still === true && live.tilt !== 'low' && live.sharp && live.bright
@@ -247,12 +324,23 @@ export function CameraView({ active, demo, locationText, onCapture, onClose }: P
           <button onClick={onClose} className="h-11 rounded-full bg-black/60 px-4 text-[15px] font-semibold">
             닫기
           </button>
-          <button
-            onClick={toggleAuto}
-            className={`h-11 rounded-full px-4 text-[15px] font-semibold ${autoOn ? 'bg-blue-600' : 'bg-black/60'}`}
-          >
-            자동 촬영 {autoOn ? '켜짐' : '꺼짐'}
-          </button>
+          <div className="flex items-center gap-2">
+            {torchSupported && (
+              <button
+                onClick={toggleTorch}
+                aria-pressed={torchWanted}
+                className={`h-11 rounded-full px-3 text-[15px] font-semibold ${torchWanted ? 'bg-yellow-300 text-gray-900' : 'bg-black/60'}`}
+              >
+                손전등 {torchWanted ? '켜짐' : '꺼짐'}
+              </button>
+            )}
+            <button
+              onClick={toggleAuto}
+              className={`h-11 rounded-full px-3 text-[15px] font-semibold ${autoOn ? 'bg-blue-600' : 'bg-black/60'}`}
+            >
+              자동 촬영 {autoOn ? '켜짐' : '꺼짐'}
+            </button>
+          </div>
         </div>
         <p className="mt-2 text-[14px] text-white">비 올 때 금지 · 인도 쪽에서만 · 덮개 열지 않기 · 사람·번호판 찍지 않기</p>
       </div>
@@ -268,7 +356,7 @@ export function CameraView({ active, demo, locationText, onCapture, onClose }: P
               기본 카메라 앱으로 찍기
             </button>
             {demo && (
-              <button onClick={() => captureRef.current({ canvas: demoCanvas(), mode: 'demo' })} className="h-12 rounded-lg bg-gray-700 text-base font-semibold">
+              <button onClick={() => captureRef.current({ canvas: demoCanvas(), mode: 'demo', torch: false })} className="h-12 rounded-lg bg-gray-700 text-base font-semibold">
                 연습용 샘플 사진 쓰기
               </button>
             )}
@@ -276,7 +364,8 @@ export function CameraView({ active, demo, locationText, onCapture, onClose }: P
         </div>
       ) : (
         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent px-4 pt-10" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 14px)' }}>
-          <p className="text-center text-[16px] font-semibold">{ready ? hintText(live, autoOn) : '카메라를 켜는 중…'}</p>
+          <p className="text-center text-[16px] font-semibold">{ready ? hintText(live, autoOn, torchUi) : '카메라를 켜는 중…'}</p>
+          {torchUi === 'on' && <p className="mt-1 text-center text-[14px] text-yellow-200">빛이 반사되면 폰을 조금 비스듬히 기울여 주세요</p>}
           <button onClick={() => setShowNumbers((s) => !s)} className="mx-auto mt-2 flex flex-wrap justify-center gap-1.5">
             <Chip ok={live.still} label={live.sensor ? '흔들림' : '흔들림(화면)'} />
             <Chip ok={live.tilt === 'unknown' ? null : live.tilt === 'ok'} label="각도" />
@@ -300,7 +389,7 @@ export function CameraView({ active, demo, locationText, onCapture, onClose }: P
               className="h-[76px] w-[76px] justify-self-center rounded-full border-[5px] border-white bg-white/25 active:bg-white/60 disabled:opacity-40"
             />
             {demo ? (
-              <button onClick={() => captureRef.current({ canvas: demoCanvas(), mode: 'demo' })} className="h-11 justify-self-end rounded-lg bg-black/60 px-3 text-[14px] font-semibold">
+              <button onClick={() => captureRef.current({ canvas: demoCanvas(), mode: 'demo', torch: false })} className="h-11 justify-self-end rounded-lg bg-black/60 px-3 text-[14px] font-semibold">
                 샘플 사진
               </button>
             ) : (
@@ -339,10 +428,14 @@ function Chip({ ok, label }: { ok: boolean | null; label: string }) {
   )
 }
 
-function hintText(l: Live, auto: boolean): string {
+function hintText(l: Live, auto: boolean, torch: TorchUi): string {
   if (l.countdown > 0) return '그대로 멈춰 주세요'
   if (l.tilt === 'low') return '폰을 더 숙여서 바닥을 내려다봐 주세요'
-  if (!l.bright) return '너무 어둡습니다. 밝은 곳에서 찍어 주세요'
+  if (!l.bright) {
+    if (torch === 'off') return '어둡습니다. 위의 손전등을 켜 주세요'
+    if (torch === 'on') return '손전등을 켜도 어둡습니다. 조금 더 가까이 비춰 주세요'
+    return "어둡습니다. 왼쪽 아래 '기본 카메라'로 찍으면 플래시를 쓸 수 있습니다"
+  }
   if (l.still === false) return '폰을 잠깐 멈춰 주세요'
   if (l.still === true && !l.sharp) return '흐립니다. 조금 떨어져서 찍어 주세요'
   return auto ? '흰 틀 안에 빗물받이를 맞추고 멈추면 자동으로 찍힙니다' : '흰 틀 안에 빗물받이를 맞추고 찍기를 눌러 주세요'

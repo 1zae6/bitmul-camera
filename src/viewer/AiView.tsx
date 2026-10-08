@@ -233,7 +233,7 @@ export function AiView({ photos, grades, name, onSelect, ai }: Props) {
       const t = truth.get(r.photo_id)
       const pair = raterPair(p, gradesByPhoto.get(r.photo_id) ?? [])
       return [
-        r.photo_id, p?.drain_code, p ? PHASE_LABEL[p.phase] : '', pair.shooterText, pair.othersText, pair.agreeText,
+        r.photo_id, p?.drain_code, p ? PHASE_LABEL[p.phase] : '', p?.taken_at ?? '', Boolean(p?.torch), pair.shooterText, pair.othersText, pair.agreeText,
         t?.cat ?? '', t?.raters ?? 0, t?.report ?? '', r.grade, r.unusable, r.needs_report, r.grate_percent, r.around_percent,
         r.covered_percent, r.confidence, (r.causes ?? []).join('|'), r.reason, r.latency_ms,
       ]
@@ -242,7 +242,7 @@ export function AiView({ photos, grades, name, onSelect, ai }: Props) {
       `AI채점_${today()}_${selected.model}.csv`,
       toCsv(
         [
-          'photo_id', '빗물받이번호', '단계', '찍은사람등급', '채점자등급', '채점일치', '사람정답', '매긴사람수', '사람신고',
+          'photo_id', '빗물받이번호', '단계', '촬영시각', '손전등', '찍은사람등급', '채점자등급', '채점일치', '사람정답', '매긴사람수', '사람신고',
           'AI등급', 'AI판단불가', 'AI신고', '덮개막힘', '주변쓰레기', '쓰레기면적', '확신도', '원인', '이유', '응답ms',
         ],
         rows,

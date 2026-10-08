@@ -53,11 +53,11 @@ function Shooter({ name }: { name: string }) {
     return () => window.clearTimeout(t)
   }, [toast])
 
-  const onCapture = async ({ canvas, mode }: Captured) => {
+  const onCapture = async ({ canvas, mode, torch }: Captured) => {
     const takenAt = new Date().toISOString()
     const quality = assess(canvas, canvas.width, canvas.height, CONFIG.guide, CONFIG.quality.analysisWidth)
     const preview = await canvasToJpeg(canvas, 0.85)
-    setShot({ canvas, url: URL.createObjectURL(preview), width: canvas.width, height: canvas.height, mode, takenAt, fix, quality })
+    setShot({ canvas, url: URL.createObjectURL(preview), width: canvas.width, height: canvas.height, mode, torch, takenAt, fix, quality })
     setStage('review')
   }
 
@@ -94,6 +94,8 @@ function Shooter({ name }: { name: string }) {
         brightness: q.brightness,
         is_test: r.isTest,
         device: navigator.userAgent.slice(0, 200),
+        // 꺼진 경우는 DB 기본값(false)에 맡겨, 손전등 열이 없는 DB 에도 그대로 올라가게 한다
+        ...(shot.torch ? { torch: true } : {}),
       }
       await addPending({ id, photo, thumb, row, addedAt: Date.now(), grade: r.mine })
       if (getAiField()) {

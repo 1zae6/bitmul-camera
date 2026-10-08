@@ -11,6 +11,8 @@ export type Shot = {
   width: number
   height: number
   mode: CaptureMode
+  /** 손전등을 켠 채 찍었는지 */
+  torch: boolean
   takenAt: string
   fix: Fix | null
   quality: { sharpness: number; brightness: number }
@@ -190,6 +192,7 @@ export function Review({ shot, locationText, saving, onRetake, onSave, name }: P
         <div className="flex items-center justify-between gap-3 text-[14px] text-gray-700">
           <span>
             {locationText} · {CAPTURE_MODE_LABEL[shot.mode]}
+            {shot.torch && ' · 손전등'}
           </span>
           <label className="flex min-h-11 items-center gap-2 text-[15px] text-gray-900">
             <input type="checkbox" checked={isTest} onChange={(e) => setIsTest(e.target.checked)} className="h-5 w-5" />
