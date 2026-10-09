@@ -57,6 +57,8 @@ export const CONFIG = {
   answerKeyGoal: 100,
   /** Supabase 저장소 버킷 이름 (supabase/schema.sql 과 같아야 한다) */
   bucket: 'drain-photos',
+  /** 폰에서 '박스 고치기'(다른 사람 사진의 빨간 박스 수정)를 쓸 수 있는 이름. 팀 공용 계정이라 잠금이 아니라 실수 방지용이다 */
+  boxEditors: ['한재욱'],
   /** 앱을 켜 둔 동안 새 버전을 확인하는 간격(분) */
   updateCheckMinutes: 30,
   /** 사진 보기용 임시 주소 유효 시간(초) */

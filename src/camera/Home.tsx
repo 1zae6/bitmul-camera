@@ -9,9 +9,11 @@ type Props = {
   counts: { total: number | null; mine: number | null }
   queue: { pending: number; uploading: boolean; lastError: string; upload: () => Promise<unknown> }
   onStart: () => void
+  /** 박스 고치기 화면 (CONFIG.boxEditors 에 든 이름만 버튼이 보인다) */
+  onFixBoxes: () => void
 }
 
-export function Home({ name, counts, queue, onStart }: Props) {
+export function Home({ name, counts, queue, onStart, onFixBoxes }: Props) {
   const [renaming, setRenaming] = useState(false)
   const [draft, setDraft] = useState(name)
   const [aiField, setAiFieldState] = useState(getAiField)
@@ -120,6 +122,11 @@ export function Home({ name, counts, queue, onStart }: Props) {
         <button onClick={start} className="h-16 w-full rounded-2xl bg-blue-600 text-[19px] font-bold text-white">
           촬영 시작
         </button>
+        {(CONFIG.boxEditors as readonly string[]).includes(name.trim()) && (
+          <button onClick={onFixBoxes} className="h-12 w-full rounded-xl border border-gray-300 text-[16px] font-semibold text-gray-900">
+            박스 고치기 (팀원 사진)
+          </button>
+        )}
         <div className="flex items-center justify-between text-[14px] text-gray-700">
           <span className="truncate">PC 뷰어: {viewerUrl}</span>
           <button onClick={() => void logout()} className="min-h-11 shrink-0 pl-3 font-semibold text-gray-800">

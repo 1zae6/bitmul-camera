@@ -6,6 +6,7 @@ import { holdUpdates } from '../shared/pwa'
 import { sb } from '../shared/supabase'
 import { PHASE_LABEL } from '../shared/types'
 import { AiCheck, type AiJob } from './AiCheck'
+import { BoxEditor } from './BoxEditor'
 import { CameraView, type Captured } from './CameraView'
 import { freshFix, geoText, useGeolocation } from './geo'
 import { Home } from './Home'
@@ -29,7 +30,7 @@ export function App() {
   return <Shooter name={auth.name} />
 }
 
-type Stage = 'home' | 'camera' | 'review' | 'ai'
+type Stage = 'home' | 'camera' | 'review' | 'ai' | 'boxes'
 
 function Shooter({ name }: { name: string }) {
   const demo = new URLSearchParams(window.location.search).has('demo')
@@ -45,7 +46,7 @@ function Shooter({ name }: { name: string }) {
   const locationText = geoText(geo.status, fix)
 
   // 저장 화면·AI 결과 화면에서는 새 버전으로 새로 고치지 않는다
-  useEffect(() => holdUpdates(stage === 'review' || stage === 'ai'), [stage])
+  useEffect(() => holdUpdates(stage === 'review' || stage === 'ai' || stage === 'boxes'), [stage])
 
   useEffect(() => {
     if (!toast) return
@@ -120,8 +121,11 @@ function Shooter({ name }: { name: string }) {
 
   return (
     <>
-      {stage === 'home' && <Home name={name} counts={counts} queue={queue} onStart={() => setStage('camera')} />}
-      {stage !== 'home' && (
+      {stage === 'home' && (
+        <Home name={name} counts={counts} queue={queue} onStart={() => setStage('camera')} onFixBoxes={() => setStage('boxes')} />
+      )}
+      {stage === 'boxes' && <BoxEditor name={name} onClose={() => setStage('home')} />}
+      {(stage === 'camera' || stage === 'review' || stage === 'ai') && (
         <CameraView
           active={stage === 'camera'}
           demo={demo}
