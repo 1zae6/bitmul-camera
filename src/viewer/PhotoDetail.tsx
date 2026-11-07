@@ -29,14 +29,13 @@ export function PhotoDetail({ photo, myGrade, aiRows, runs, onClose, onUpdated, 
   const urls = useSignedUrls([photo.storage_path, photo.thumb_path])
   const src = urls[photo.storage_path] ?? urls[photo.thumb_path]
   const [code, setCode] = useState(photo.drain_code)
-  const [memo, setMemo] = useState(photo.memo ?? '')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [showAi, setShowAi] = useState(false)
 
-  const patch = { drain_code: code.trim().toUpperCase(), memo: memo.trim() || null }
-  const dirty = patch.drain_code !== photo.drain_code || patch.memo !== photo.memo
+  const patch = { drain_code: code.trim().toUpperCase() }
+  const dirty = patch.drain_code !== photo.drain_code
 
   const update = async (values: Partial<PhotoRow>, done: string) => {
     setBusy(true)
@@ -128,8 +127,13 @@ export function PhotoDetail({ photo, myGrade, aiRows, runs, onClose, onUpdated, 
         <dd>
           {photo.width}×{photo.height}
         </dd>
-        <dt className="text-gray-700">메모</dt>
-        <dd>{photo.memo ?? '-'}</dd>
+        {/* 메모 입력은 없앴다. 예전에 적은 메모만 보여 준다 */}
+        {photo.memo && (
+          <>
+            <dt className="text-gray-700">메모</dt>
+            <dd>{photo.memo}</dd>
+          </>
+        )}
         <dt className="text-gray-700">내 등급</dt>
         <dd>{myGrade ? gradeText(myGrade.grade, myGrade.unusable, myGrade.needs_report) : '안 매김'}</dd>
       </dl>
@@ -163,7 +167,6 @@ export function PhotoDetail({ photo, myGrade, aiRows, runs, onClose, onUpdated, 
       <section className="space-y-2 rounded-lg border border-gray-200 p-3">
         <p className="font-semibold text-gray-900">정보 고치기</p>
         <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="빗물받이 번호" className="h-9 w-full rounded-md border border-gray-300 px-2" />
-        <input value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="메모" className="h-9 w-full rounded-md border border-gray-300 px-2" />
         <button
           disabled={!dirty || busy || !patch.drain_code}
           onClick={() => void update(patch, '고쳤습니다.')}

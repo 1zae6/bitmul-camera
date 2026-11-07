@@ -21,7 +21,7 @@ export function PhotoList({ photos, myGrades, selectedId, onSelect }: Props) {
     const term = q.trim().toUpperCase()
     const l = photos.filter(
       (p) =>
-        (!term || p.drain_code.toUpperCase().includes(term) || (p.memo ?? '').toUpperCase().includes(term)) &&
+        (!term || p.drain_code.toUpperCase().includes(term)) &&
         (!who || p.photographer === who),
     )
     if (sort === 'code')
@@ -41,7 +41,7 @@ export function PhotoList({ photos, myGrades, selectedId, onSelect }: Props) {
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="번호·메모 검색"
+          placeholder="번호 검색"
           className="h-9 w-48 rounded-md border border-gray-300 px-2"
         />
         <select value={who} onChange={(e) => setWho(e.target.value)} className="h-9 rounded-md border border-gray-300 px-2">

@@ -80,7 +80,7 @@ function Shooter({ name }: { name: string }) {
         drain_code: r.code,
         // 청소 전·후 구분은 없앴다. DB 열(not null)은 남아 있어 기본값 하나로 채운다
         phase: 'before',
-        memo: r.memo || null,
+        memo: null,
         width: shot.width,
         height: shot.height,
         box_x: round4(r.box.x),

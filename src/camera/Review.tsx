@@ -19,7 +19,7 @@ export type Shot = {
 }
 
 /** mine: 찍은 사람이 현장에서 매기는 1차 등급 */
-export type ReviewResult = { box: Box; code: string; memo: string; isTest: boolean; mine: GradeInput }
+export type ReviewResult = { box: Box; code: string; isTest: boolean; mine: GradeInput }
 
 /** 등급 버튼 값: 등급 숫자 또는 판단 불가 */
 type Pick = number | 'X' | null
@@ -48,7 +48,6 @@ export function normalizeCode(raw: string): string | null {
 export function Review({ shot, locationText, saving, onRetake, onSave, name }: Props) {
   const [box, setBox] = useState<Box>({ ...CONFIG.guide })
   const [code, setCode] = useState('')
-  const [memo, setMemo] = useState('')
   const [isTest, setIsTest] = useState(shot.mode === 'demo')
   const [pick, setPick] = useState<Pick>(null)
   const [report, setReport] = useState(false)
@@ -73,7 +72,7 @@ export function Review({ shot, locationText, saving, onRetake, onSave, name }: P
     setError('')
     const mine: GradeInput =
       pick === 'X' ? { grade: null, unusable: true, needs_report: report } : { grade: pick, unusable: false, needs_report: report }
-    onSave({ box, code: c, memo: memo.trim(), isTest, mine })
+    onSave({ box, code: c, isTest, mine })
   }
 
   return (
@@ -161,14 +160,6 @@ export function Review({ shot, locationText, saving, onRetake, onSave, name }: P
           />
           <p className="mt-1 text-[14px] text-gray-700">같은 빗물받이를 다시 찍으면 같은 번호를 적어 주세요.</p>
         </div>
-
-        <input
-          value={memo}
-          onChange={(e) => setMemo(e.target.value)}
-          maxLength={200}
-          placeholder="메모 (선택) 예: 덮개 위 장판, 꽁초 많음"
-          className="h-12 w-full rounded-lg border border-gray-300 px-3 text-[16px] text-gray-900"
-        />
 
         <div className="flex items-center justify-between gap-3 text-[14px] text-gray-700">
           <span>
