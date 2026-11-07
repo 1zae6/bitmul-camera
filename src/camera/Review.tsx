@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { AnnotatedImage } from '../shared/AnnotatedImage'
 import { CONFIG } from '../shared/config'
 import { GRADE_RULES, GRADES, REPORT, UNUSABLE } from '../shared/grades'
-import { CAPTURE_MODE_LABEL, PHASES, type Box, type CaptureMode, type GradeInput, type Phase } from '../shared/types'
+import { CAPTURE_MODE_LABEL, type Box, type CaptureMode, type GradeInput } from '../shared/types'
 import type { Fix } from './geo'
 
 export type Shot = {
@@ -19,7 +19,7 @@ export type Shot = {
 }
 
 /** mine: 찍은 사람이 현장에서 매기는 1차 등급 */
-export type ReviewResult = { box: Box; code: string; phase: Phase; memo: string; isTest: boolean; mine: GradeInput }
+export type ReviewResult = { box: Box; code: string; memo: string; isTest: boolean; mine: GradeInput }
 
 /** 등급 버튼 값: 등급 숫자 또는 판단 불가 */
 type Pick = number | 'X' | null
@@ -33,9 +33,6 @@ type Props = {
   /** 찍는 사람 이름. 빗물받이 번호 예시에 쓴다 */
   name: string
 }
-
-/** 사진 수집 단계라 재방문은 고르지 않는다. 같은 빗물받이를 다시 찍으면 같은 번호에 청소 전·후만 고른다 */
-const SHOOT_PHASES = PHASES.filter((p) => p.value !== 'revisit')
 
 /**
  * 빗물받이 번호는 찍는 사람이 '이름-번호'로 직접 적는다 (예: 한재욱-1). 같은 빗물받이를 다시 찍으면 같은 번호를 적는다.
@@ -51,7 +48,6 @@ export function normalizeCode(raw: string): string | null {
 export function Review({ shot, locationText, saving, onRetake, onSave, name }: Props) {
   const [box, setBox] = useState<Box>({ ...CONFIG.guide })
   const [code, setCode] = useState('')
-  const [phase, setPhase] = useState<Phase>('before')
   const [memo, setMemo] = useState('')
   const [isTest, setIsTest] = useState(shot.mode === 'demo')
   const [pick, setPick] = useState<Pick>(null)
@@ -77,7 +73,7 @@ export function Review({ shot, locationText, saving, onRetake, onSave, name }: P
     setError('')
     const mine: GradeInput =
       pick === 'X' ? { grade: null, unusable: true, needs_report: report } : { grade: pick, unusable: false, needs_report: report }
-    onSave({ box, code: c, phase, memo: memo.trim(), isTest, mine })
+    onSave({ box, code: c, memo: memo.trim(), isTest, mine })
   }
 
   return (
@@ -164,21 +160,6 @@ export function Review({ shot, locationText, saving, onRetake, onSave, name }: P
             className="mt-1 h-12 w-full rounded-lg border border-gray-300 px-3 text-[17px] font-semibold text-gray-900"
           />
           <p className="mt-1 text-[14px] text-gray-700">같은 빗물받이를 다시 찍으면 같은 번호를 적어 주세요.</p>
-        </div>
-
-        <div>
-          <p className="text-[15px] font-semibold text-gray-900">단계</p>
-          <div className="mt-1 grid grid-cols-2 gap-2">
-            {SHOOT_PHASES.map((p) => (
-              <button
-                key={p.value}
-                onClick={() => setPhase(p.value)}
-                className={`h-12 rounded-lg border text-[16px] font-semibold ${phase === p.value ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-300 text-gray-800'}`}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
         </div>
 
         <input

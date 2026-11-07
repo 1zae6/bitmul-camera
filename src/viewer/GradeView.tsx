@@ -14,8 +14,8 @@ type Props = {
 }
 
 /**
- * 정답지용 등급 매기기. 다른 사람의 등급과 사진 정보(번호·단계·촬영자)는 보여 주지 않는다.
- * 청소 전·후를 알면 판단이 쏠리기 때문이다.
+ * 정답지용 등급 매기기. 다른 사람의 등급과 사진 정보(번호·촬영자)는 보여 주지 않는다.
+ * 누가 찍었는지 알면 판단이 쏠릴 수 있기 때문이다.
  */
 export function GradeView({ photos, grades, name, onGraded }: Props) {
   const sorted = useMemo(() => [...photos].sort((a, b) => a.taken_at.localeCompare(b.taken_at)), [photos])

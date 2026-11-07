@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { CONFIG } from '../shared/config'
 import { gradeText } from '../shared/grades'
-import { PHASE_LABEL, type GradeRow, type PhotoRow } from '../shared/types'
+import { type GradeRow, type PhotoRow } from '../shared/types'
 import { downloadCsv, today, toCsv, useSignedUrls } from './data'
 import { catOf, compare, compareReport, pct } from './metrics'
 import { ConfusionTable, Stat } from './ui'
@@ -55,13 +55,13 @@ export function AgreementView({ photos, grades, onSelect }: Props) {
 
   const exportAnswerKey = () => {
     const rows = answerKey.map(({ p, a, b }) => [
-      p.id, p.drain_code, PHASE_LABEL[p.phase], p.photographer, p.taken_at, a.grade,
+      p.id, p.drain_code, p.photographer, p.taken_at, a.grade,
       a.needs_report === b.needs_report ? a.needs_report : '불일치',
       p.storage_path, p.width, p.height, p.box_x, p.box_y, p.box_w, p.box_h, p.lat, p.lng,
     ])
     downloadCsv(
       `정답지_${A}_${B}_${today()}.csv`,
-      toCsv(['photo_id', '빗물받이번호', '단계', '촬영자', '촬영시각', '등급', '신고필요', '사진경로', '폭', '높이', 'box_x', 'box_y', 'box_w', 'box_h', '위도', '경도'], rows),
+      toCsv(['photo_id', '빗물받이번호', '촬영자', '촬영시각', '등급', '신고필요', '사진경로', '폭', '높이', 'box_x', 'box_y', 'box_w', 'box_h', '위도', '경도'], rows),
     )
   }
 
@@ -71,9 +71,9 @@ export function AgreementView({ photos, grades, onSelect }: Props) {
       .filter((g) => photoById.has(g.photo_id))
       .map((g) => {
         const p = photoById.get(g.photo_id)!
-        return [g.photo_id, p.drain_code, PHASE_LABEL[p.phase], g.grader, g.grade, g.unusable, g.needs_report, g.updated_at]
+        return [g.photo_id, p.drain_code, g.grader, g.grade, g.unusable, g.needs_report, g.updated_at]
       })
-    downloadCsv(`전체등급_${today()}.csv`, toCsv(['photo_id', '빗물받이번호', '단계', '채점자', '등급', '판단불가', '신고필요', '매긴시각'], rows))
+    downloadCsv(`전체등급_${today()}.csv`, toCsv(['photo_id', '빗물받이번호', '채점자', '등급', '판단불가', '신고필요', '매긴시각'], rows))
   }
 
   return (
@@ -146,7 +146,7 @@ export function AgreementView({ photos, grades, onSelect }: Props) {
                     </div>
                     <div className="p-2 text-gray-900">
                       <p className="font-semibold">
-                        {p.drain_code} · {PHASE_LABEL[p.phase]}
+                        {p.drain_code}
                       </p>
                       <p className="text-gray-700">
                         {A}: {gradeText(a.grade, a.unusable, a.needs_report)}

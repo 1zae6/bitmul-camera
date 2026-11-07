@@ -4,7 +4,7 @@ import { AnnotatedImage } from '../shared/AnnotatedImage'
 import { CONFIG } from '../shared/config'
 import { gradeText } from '../shared/grades'
 import { sb } from '../shared/supabase'
-import { PHASE_LABEL, rowBox, type Box, type PhotoRow } from '../shared/types'
+import { rowBox, type Box, type PhotoRow } from '../shared/types'
 import { uploadErrorText } from './queue'
 
 // 박스 고치기 (CONFIG.boxEditors 에 든 이름만). 팀원이 맞춘 빨간 박스를 고쳐 덮어쓰고,
@@ -139,7 +139,7 @@ function EditOne({ photo, name, onDone, onCancel }: { photo: PhotoRow; name: str
     <div className="fixed inset-0 z-20 flex flex-col bg-white" style={{ height: '100dvh' }}>
       <div className="px-4 pb-2" style={{ paddingTop: 'max(env(safe-area-inset-top), 10px)' }}>
         <p className="text-[16px] font-bold text-gray-900">
-          {photo.drain_code} · {PHASE_LABEL[photo.phase]} · {photo.photographer}
+          {photo.drain_code} · {photo.photographer}
         </p>
         <p className="text-[14px] text-gray-700">빨간 박스를 덮개 테두리에 맞춰 주세요. 저장하면 박스를 덮어쓰고 AI 채점을 다시 합니다.</p>
       </div>

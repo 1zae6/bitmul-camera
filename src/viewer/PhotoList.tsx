@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { BoxOverlay } from '../shared/AnnotatedImage'
 import { gradeText } from '../shared/grades'
-import { PHASE_LABEL, PHASES, rowBox, type GradeRow, type Phase, type PhotoRow } from '../shared/types'
+import { rowBox, type GradeRow, type PhotoRow } from '../shared/types'
 import { fmtTime, useSignedUrls } from './data'
 
 type Props = {
@@ -11,12 +11,9 @@ type Props = {
   onSelect: (id: string) => void
 }
 
-const PHASE_ORDER: Record<Phase, number> = { before: 0, after: 1, revisit: 2 }
-
 export function PhotoList({ photos, myGrades, selectedId, onSelect }: Props) {
   const [q, setQ] = useState('')
   const [who, setWho] = useState('')
-  const [phase, setPhase] = useState<'' | Phase>('')
   const [sort, setSort] = useState<'new' | 'code'>('new')
 
   const people = useMemo(() => [...new Set(photos.map((p) => p.photographer))].sort(), [photos])
@@ -25,18 +22,16 @@ export function PhotoList({ photos, myGrades, selectedId, onSelect }: Props) {
     const l = photos.filter(
       (p) =>
         (!term || p.drain_code.toUpperCase().includes(term) || (p.memo ?? '').toUpperCase().includes(term)) &&
-        (!who || p.photographer === who) &&
-        (!phase || p.phase === phase),
+        (!who || p.photographer === who),
     )
     if (sort === 'code')
       return [...l].sort(
         (a, b) =>
           a.drain_code.localeCompare(b.drain_code, 'ko', { numeric: true }) ||
-          PHASE_ORDER[a.phase] - PHASE_ORDER[b.phase] ||
           a.taken_at.localeCompare(b.taken_at),
       )
     return l
-  }, [photos, q, who, phase, sort])
+  }, [photos, q, who, sort])
 
   const urls = useSignedUrls(list.map((p) => p.thumb_path))
 
@@ -54,14 +49,6 @@ export function PhotoList({ photos, myGrades, selectedId, onSelect }: Props) {
           {people.map((p) => (
             <option key={p} value={p}>
               {p}
-            </option>
-          ))}
-        </select>
-        <select value={phase} onChange={(e) => setPhase(e.target.value as '' | Phase)} className="h-9 rounded-md border border-gray-300 px-2">
-          <option value="">단계 전체</option>
-          {PHASES.map((p) => (
-            <option key={p.value} value={p.value}>
-              {p.label}
             </option>
           ))}
         </select>
@@ -96,7 +83,7 @@ export function PhotoList({ photos, myGrades, selectedId, onSelect }: Props) {
                 </div>
                 <div className="space-y-0.5 p-2">
                   <p className="font-semibold text-gray-900">
-                    {p.drain_code} · {PHASE_LABEL[p.phase]}
+                    {p.drain_code}
                   </p>
                   <p className="text-gray-700">
                     {p.photographer} · {fmtTime(p.taken_at)}

@@ -2,7 +2,7 @@ import { Fragment, useMemo, useRef, useState } from 'react'
 import { CONFIG } from '../shared/config'
 import { GRADES, gradeText } from '../shared/grades'
 import { sb } from '../shared/supabase'
-import { PHASE_LABEL, type AiGradeRow, type AiMode, type AiRunRow, type GradeRow, type PhotoRow } from '../shared/types'
+import { type AiGradeRow, type AiMode, type AiRunRow, type GradeRow, type PhotoRow } from '../shared/types'
 import { downloadCsv, errorText, getSignedUrl, today, toCsv, useSignedUrls, type AiData } from './data'
 import { AiError, answerJson, areaText, buildParts, callAi, loadKey, maskKey, prepareImage, PROMPT_VERSION, saveKey, toAiRow, type Example } from '../shared/ai'
 import { catOf, compare, compareReport, humanTruth, pct, type Truth } from './metrics'
@@ -233,7 +233,7 @@ export function AiView({ photos, grades, name, onSelect, ai }: Props) {
       const t = truth.get(r.photo_id)
       const pair = raterPair(p, gradesByPhoto.get(r.photo_id) ?? [])
       return [
-        r.photo_id, p?.drain_code, p ? PHASE_LABEL[p.phase] : '', p?.taken_at ?? '', Boolean(p?.torch), pair.shooterText, pair.othersText, pair.agreeText,
+        r.photo_id, p?.drain_code, p?.taken_at ?? '', Boolean(p?.torch), pair.shooterText, pair.othersText, pair.agreeText,
         t?.cat ?? '', t?.raters ?? 0, t?.report ?? '', r.grade, r.unusable, r.needs_report, r.grate_percent, r.around_percent,
         r.covered_percent, r.confidence, (r.causes ?? []).join('|'), r.reason, r.latency_ms,
       ]
@@ -622,7 +622,7 @@ function AnswerTable({
                       </td>
                       <td className="min-w-[110px] py-1.5 pr-2">
                         <button onClick={() => p && onSelect(p.id)} className="text-left font-semibold text-gray-900 hover:underline">
-                          {p ? `${p.drain_code} · ${PHASE_LABEL[p.phase]}` : '(지워진 사진)'}
+                          {p ? p.drain_code : '(지워진 사진)'}
                         </button>
                       </td>
                       <td className="whitespace-nowrap py-1.5 pr-2 text-gray-800">{pair.shooterText}</td>

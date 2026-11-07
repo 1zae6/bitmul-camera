@@ -4,11 +4,11 @@ import { areaText, buildParts, callAi, cropForAi, ensureFieldRun, fieldRunId, to
 import { CONFIG } from '../shared/config'
 import { gradeText } from '../shared/grades'
 import { sb } from '../shared/supabase'
-import { PHASE_LABEL, type Box, type GradeInput, type Phase } from '../shared/types'
+import { type Box, type GradeInput } from '../shared/types'
 import { listPending, uploadAll, uploadErrorText } from './queue'
 import type { Shot } from './Review'
 
-export type AiJob = { id: string; code: string; phase: Phase; shot: Shot; box: Box; mine: GradeInput }
+export type AiJob = { id: string; code: string; shot: Shot; box: Box; mine: GradeInput }
 
 type Step =
   | { kind: 'upload' }
@@ -71,7 +71,7 @@ export function AiCheck({ job, name, onDone, onRetake }: Props) {
     <div className="fixed inset-0 z-20 flex flex-col bg-white" style={{ height: '100dvh' }}>
       <div className="px-4 pb-2" style={{ paddingTop: 'max(env(safe-area-inset-top), 10px)' }}>
         <p className="text-[16px] font-bold text-gray-900">
-          {job.code} · {PHASE_LABEL[job.phase]} 저장했습니다
+          {job.code} 저장했습니다
         </p>
         <p className="text-[14px] text-gray-700">내 등급: {gradeText(mine.grade, mine.unusable, mine.needs_report)}</p>
       </div>

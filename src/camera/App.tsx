@@ -4,7 +4,6 @@ import { CONFIG } from '../shared/config'
 import { LoginScreen } from '../shared/LoginScreen'
 import { holdUpdates } from '../shared/pwa'
 import { sb } from '../shared/supabase'
-import { PHASE_LABEL } from '../shared/types'
 import { AiCheck, type AiJob } from './AiCheck'
 import { BoxEditor } from './BoxEditor'
 import { CameraView, type Captured } from './CameraView'
@@ -79,7 +78,8 @@ function Shooter({ name }: { name: string }) {
         taken_at: shot.takenAt,
         photographer: name,
         drain_code: r.code,
-        phase: r.phase,
+        // 청소 전·후 구분은 없앴다. DB 열(not null)은 남아 있어 기본값 하나로 채운다
+        phase: 'before',
         memo: r.memo || null,
         width: shot.width,
         height: shot.height,
@@ -101,13 +101,13 @@ function Shooter({ name }: { name: string }) {
       await addPending({ id, photo, thumb, row, addedAt: Date.now(), grade: r.mine })
       if (getAiField()) {
         // 찍고 바로 AI 채점: 사진은 결과 화면이 끝날 때까지 들고 있는다
-        setAiJob({ id, code: r.code, phase: r.phase, shot, box: r.box, mine: r.mine })
+        setAiJob({ id, code: r.code, shot, box: r.box, mine: r.mine })
         setStage('ai')
         return
       }
       closeShot()
       setStage('camera')
-      setToast(`${r.code} ${PHASE_LABEL[r.phase]} 저장했습니다. 올리는 중…`)
+      setToast(`${r.code} 저장했습니다. 올리는 중…`)
       void queue.upload().then((res) => {
         if (res.failed) setToast('올리지 못한 사진이 있습니다. 처음 화면에서 다시 올려 주세요.')
         else if (res.uploaded) setToast(`${r.code} 올렸습니다.`)

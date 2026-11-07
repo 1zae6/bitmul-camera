@@ -5,13 +5,10 @@ import { gradeText } from '../shared/grades'
 import { sb } from '../shared/supabase'
 import {
   CAPTURE_MODE_LABEL,
-  PHASE_LABEL,
-  PHASES,
   rowBox,
   type AiGradeRow,
   type AiRunRow,
   type GradeRow,
-  type Phase,
   type PhotoRow,
 } from '../shared/types'
 import { downloadBlob, errorText, useSignedUrls } from './data'
@@ -32,15 +29,14 @@ export function PhotoDetail({ photo, myGrade, aiRows, runs, onClose, onUpdated, 
   const urls = useSignedUrls([photo.storage_path, photo.thumb_path])
   const src = urls[photo.storage_path] ?? urls[photo.thumb_path]
   const [code, setCode] = useState(photo.drain_code)
-  const [phase, setPhase] = useState<Phase>(photo.phase)
   const [memo, setMemo] = useState(photo.memo ?? '')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [showAi, setShowAi] = useState(false)
 
-  const patch = { drain_code: code.trim().toUpperCase(), phase, memo: memo.trim() || null }
-  const dirty = patch.drain_code !== photo.drain_code || patch.phase !== photo.phase || patch.memo !== photo.memo
+  const patch = { drain_code: code.trim().toUpperCase(), memo: memo.trim() || null }
+  const dirty = patch.drain_code !== photo.drain_code || patch.memo !== photo.memo
 
   const update = async (values: Partial<PhotoRow>, done: string) => {
     setBusy(true)
@@ -57,7 +53,7 @@ export function PhotoDetail({ photo, myGrade, aiRows, runs, onClose, onUpdated, 
     if (!url) return
     try {
       const blob = await (await fetch(url)).blob()
-      downloadBlob(`${photo.drain_code}_${PHASE_LABEL[photo.phase]}_${photo.id.slice(0, 8)}.jpg`, blob)
+      downloadBlob(`${photo.drain_code}_${photo.id.slice(0, 8)}.jpg`, blob)
     } catch (err) {
       setMsg(errorText(err))
     }
@@ -81,7 +77,7 @@ export function PhotoDetail({ photo, myGrade, aiRows, runs, onClose, onUpdated, 
     <div className="space-y-3 p-4">
       <div className="flex items-center justify-between">
         <h2 className="text-base font-bold text-gray-900">
-          {photo.drain_code} · {PHASE_LABEL[photo.phase]}
+          {photo.drain_code}
           {photo.is_test && <span className="ml-2 rounded bg-gray-200 px-1.5 py-0.5 text-xs font-medium text-gray-800">연습용</span>}
         </h2>
         <button onClick={onClose} className="rounded-md px-2 py-1 font-medium text-gray-800 hover:bg-gray-100">
@@ -166,16 +162,7 @@ export function PhotoDetail({ photo, myGrade, aiRows, runs, onClose, onUpdated, 
 
       <section className="space-y-2 rounded-lg border border-gray-200 p-3">
         <p className="font-semibold text-gray-900">정보 고치기</p>
-        <div className="flex gap-2">
-          <input value={code} onChange={(e) => setCode(e.target.value)} className="h-9 w-28 rounded-md border border-gray-300 px-2" />
-          <select value={phase} onChange={(e) => setPhase(e.target.value as Phase)} className="h-9 flex-1 rounded-md border border-gray-300 px-2">
-            {PHASES.map((p) => (
-              <option key={p.value} value={p.value}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-        </div>
+        <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="빗물받이 번호" className="h-9 w-full rounded-md border border-gray-300 px-2" />
         <input value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="메모" className="h-9 w-full rounded-md border border-gray-300 px-2" />
         <button
           disabled={!dirty || busy || !patch.drain_code}
