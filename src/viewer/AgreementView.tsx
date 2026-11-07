@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { CONFIG } from '../shared/config'
-import { gradeText } from '../shared/grades'
+import { gradeName, gradeText, needsRegrade } from '../shared/grades'
 import { type GradeRow, type PhotoRow } from '../shared/types'
 import { downloadCsv, today, toCsv, useSignedUrls } from './data'
 import { catOf, compare, compareReport, pct } from './metrics'
@@ -32,6 +32,14 @@ export function AgreementView({ photos, grades, onSelect }: Props) {
     return m
   }, [grades])
 
+  // 사람마다 옛 기준 '조금 쌓임'이라 다시 매길 사진 수
+  const regradeBy = useMemo(() => {
+    const ids = new Set(photos.map((p) => p.id))
+    const m = new Map<string, number>()
+    for (const g of grades) if (ids.has(g.photo_id) && needsRegrade(g)) m.set(g.grader, (m.get(g.grader) ?? 0) + 1)
+    return m
+  }, [photos, grades])
+
   const pairs: Pair[] = useMemo(() => {
     if (!A || !B || A === B) return []
     const out: Pair[] = []
@@ -43,19 +51,25 @@ export function AgreementView({ photos, grades, onSelect }: Props) {
     return out
   }, [photos, byPhoto, A, B])
 
-  const stats = useMemo(
-    () => compare(pairs.map(({ a, b }) => ({ a: catOf(a.grade, a.unusable), b: catOf(b.grade, b.unusable) }))),
+  // 옛 기준 '조금 쌓임'이 낀 사진은 다시 매길 때까지 등급 비교에서 뺀다 (신고 필요 비교에는 넣는다)
+  const ready = useMemo(
+    () => pairs.filter(({ a, b }) => catOf(a.grade, a.unusable) !== null && catOf(b.grade, b.unusable) !== null),
     [pairs],
+  )
+  const waiting = pairs.length - ready.length
+  const stats = useMemo(
+    () => compare(ready.map(({ a, b }) => ({ a: catOf(a.grade, a.unusable)!, b: catOf(b.grade, b.unusable)! }))),
+    [ready],
   )
   const report = useMemo(() => compareReport(pairs.map(({ a, b }) => ({ a: a.needs_report, b: b.needs_report }))), [pairs])
   const same = (x: Pair) => catOf(x.a.grade, x.a.unusable) === catOf(x.b.grade, x.b.unusable)
-  const disagreements = pairs.filter((x) => !same(x))
-  const answerKey = pairs.filter((x) => same(x) && !x.a.unusable)
+  const disagreements = ready.filter((x) => !same(x))
+  const answerKey = ready.filter((x) => same(x) && !x.a.unusable)
   const urls = useSignedUrls(disagreements.slice(0, 60).map((x) => x.p.thumb_path))
 
   const exportAnswerKey = () => {
     const rows = answerKey.map(({ p, a, b }) => [
-      p.id, p.drain_code, p.photographer, p.taken_at, a.grade,
+      p.id, p.drain_code, p.photographer, p.taken_at, gradeName(a.grade),
       a.needs_report === b.needs_report ? a.needs_report : '불일치',
       p.storage_path, p.width, p.height, p.box_x, p.box_y, p.box_w, p.box_h, p.lat, p.lng,
     ])
@@ -71,7 +85,7 @@ export function AgreementView({ photos, grades, onSelect }: Props) {
       .filter((g) => photoById.has(g.photo_id))
       .map((g) => {
         const p = photoById.get(g.photo_id)!
-        return [g.photo_id, p.drain_code, g.grader, g.grade, g.unusable, g.needs_report, g.updated_at]
+        return [g.photo_id, p.drain_code, g.grader, g.unusable ? '' : gradeName(g.grade), g.unusable, g.needs_report, g.updated_at]
       })
     downloadCsv(`전체등급_${today()}.csv`, toCsv(['photo_id', '빗물받이번호', '채점자', '등급', '판단불가', '신고필요', '매긴시각'], rows))
   }
@@ -106,6 +120,7 @@ export function AgreementView({ photos, grades, onSelect }: Props) {
             {graders.map((g) => (
               <li key={g}>
                 {g}: {photos.filter((p) => byPhoto.get(p.id)?.has(g)).length}장
+                {regradeBy.get(g) ? ` (옛 기준이라 다시 매길 사진 ${regradeBy.get(g)}장)` : ''}
               </li>
             ))}
           </ul>
@@ -116,16 +131,17 @@ export function AgreementView({ photos, grades, onSelect }: Props) {
         <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center text-gray-700">
           등급을 매긴 사람이 두 명 이상이어야 비교할 수 있습니다.
         </div>
-      ) : pairs.length === 0 ? (
+      ) : ready.length === 0 ? (
         <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center text-gray-700">
           {A}와 {B}가 둘 다 매긴 사진이 아직 없습니다.
+          {waiting > 0 && ` 옛 기준 '조금 쌓임'이라 다시 매길 사진 ${waiting}장은 다시 매기면 비교됩니다.`}
         </div>
       ) : (
         <>
           <section className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-            <Stat label="둘 다 매긴 사진" value={`${stats.n}장`} />
+            <Stat label="둘 다 매긴 사진" value={`${stats.n}장`} hint={waiting ? `옛 기준이라 다시 매길 사진 ${waiting}장은 뺐습니다` : undefined} />
             <Stat label="완전 일치" value={`${stats.agree}장 (${pct(stats.agree, stats.n)})`} />
-            <Stat label="±1 등급 이내" value={pct(stats.within1, stats.numeric)} hint="판단 불가 제외" />
+            <Stat label="±1단계 이내" value={pct(stats.within1, stats.numeric)} hint="판단 불가 제외. 괜찮음↔막힘으로 엇갈린 것만 빠짐" />
             <Stat label="코언 카파" value={stats.kappa === null ? '-' : stats.kappa.toFixed(2)} hint="우연히 맞을 확률을 뺀 일치도" />
             <Stat label="신고 필요 판단 일치" value={report.n ? `${report.agree}장 (${pct(report.agree, report.n)})` : '-'} hint={`둘 다 신고 ${report.bothYes}장`} />
             <Stat label="정답지" value={`${answerKey.length} / ${CONFIG.answerKeyGoal}장`} hint="두 사람이 같고 판단 가능한 사진 (기획안 목표)" />

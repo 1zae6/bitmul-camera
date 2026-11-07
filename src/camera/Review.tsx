@@ -108,7 +108,7 @@ export function Review({ shot, locationText, saving, onRetake, onSave, name }: P
               ))}
               {GRADES.map((g) => (
                 <li key={g.value}>
-                  {g.value} {g.short}: {g.desc}
+                  {g.short}: {g.desc}
                 </li>
               ))}
             </ul>
@@ -118,18 +118,22 @@ export function Review({ shot, locationText, saving, onRetake, onSave, name }: P
               <button
                 key={g.value}
                 onClick={() => setPick(g.value)}
-                className={`min-h-12 rounded-lg border px-1 text-[15px] font-semibold ${pick === g.value ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-300 text-gray-900'}`}
+                className={`min-h-14 rounded-lg border px-1 py-1.5 ${pick === g.value ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-300 text-gray-900'}`}
               >
-                {g.value} {g.short}
+                <span className="flex items-center justify-center gap-1.5 text-[16px] font-semibold">
+                  <span className={`h-3 w-3 shrink-0 rounded-full ${g.dot} ${pick === g.value ? 'ring-2 ring-white' : ''}`} />
+                  {g.short}
+                </span>
+                <span className={`block text-[14px] ${pick === g.value ? 'text-white' : 'text-gray-700'}`}>{g.range}</span>
               </button>
             ))}
-            <button
-              onClick={() => setPick('X')}
-              className={`min-h-12 rounded-lg border px-1 text-[15px] font-semibold ${pick === 'X' ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-300 text-gray-900'}`}
-            >
-              {UNUSABLE.short}
-            </button>
           </div>
+          <button
+            onClick={() => setPick('X')}
+            className={`mt-2 min-h-12 w-full rounded-lg border px-1 text-[15px] font-semibold ${pick === 'X' ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-300 text-gray-900'}`}
+          >
+            {UNUSABLE.short} (사진으로 알 수 없음)
+          </button>
           <button
             onClick={() => setReport((r) => !r)}
             className={`mt-2 flex min-h-12 w-full items-center gap-3 rounded-lg border px-3 text-left text-[15px] ${report ? 'border-red-600 bg-red-50 text-red-900' : 'border-gray-300 text-gray-900'}`}

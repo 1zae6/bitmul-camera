@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AnnotatedImage } from '../shared/AnnotatedImage'
-import { GRADE_RULES, GRADES, MAX_GRADE, REPORT, UNUSABLE } from '../shared/grades'
+import { GRADE_RULES, GRADES, needsRegrade, REPORT, UNUSABLE } from '../shared/grades'
 import { sb } from '../shared/supabase'
 import { rowBox, type GradeRow, type PhotoRow } from '../shared/types'
 import { errorText, signUrls, useSignedUrls } from './data'
@@ -31,11 +31,15 @@ export function GradeView({ photos, grades, name, onGraded }: Props) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
-  const list = onlyTodo ? sorted.filter((p) => !mine.has(p.id) && (raters.get(p.id) ?? 0) < 2) : sorted
+  // 옛 기준 '조금 쌓임'으로 매긴 사진은 새 기준으로 다시 골라야 하므로 매길 사진에 다시 넣는다
+  const regrade = sorted.filter((p) => needsRegrade(mine.get(p.id)))
+  const list = onlyTodo
+    ? sorted.filter((p) => (!mine.has(p.id) && (raters.get(p.id) ?? 0) < 2) || needsRegrade(mine.get(p.id)))
+    : sorted
   const idx = Math.min(pos, Math.max(0, list.length - 1))
   const photo = list[idx] as PhotoRow | undefined
   const current = photo ? mine.get(photo.id) : undefined
-  const done = sorted.filter((p) => mine.has(p.id)).length
+  const done = sorted.filter((p) => mine.has(p.id) && !needsRegrade(mine.get(p.id))).length
   const urls = useSignedUrls(photo ? [photo.storage_path] : [])
   // '신고 필요'는 등급과 별개. 사진이 바뀌면 이미 매긴 값으로 맞춘다
   const [report, setReport] = useState(false)
@@ -73,7 +77,8 @@ export function GradeView({ photos, grades, name, onGraded }: Props) {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target
       if (t instanceof HTMLInputElement || t instanceof HTMLSelectElement || t instanceof HTMLTextAreaElement) return
-      if (/^\d$/.test(e.key) && Number(e.key) <= MAX_GRADE) void save(Number(e.key), false)
+      const byKey = GRADES.find((g) => g.key === e.key)
+      if (byKey) void save(byKey.value, false)
       else if (e.key === 'x' || e.key === 'X') void save(null, true)
       else if (e.key === 'r' || e.key === 'R') toggleReport()
       else if (e.key === 'ArrowRight') setPos(Math.min(idx + 1, list.length - 1))
@@ -89,6 +94,7 @@ export function GradeView({ photos, grades, name, onGraded }: Props) {
         <div className="flex flex-wrap items-center gap-3">
           <p className="font-semibold text-gray-900">
             내가 매긴 사진 {done} / {sorted.length}장
+            {regrade.length > 0 && <span className="ml-2 font-normal text-amber-800">옛 기준이라 다시 매길 사진 {regrade.length}장</span>}
           </p>
           <label className="flex items-center gap-1.5 text-gray-800">
             <input
@@ -99,7 +105,7 @@ export function GradeView({ photos, grades, name, onGraded }: Props) {
                 setPos(0)
               }}
             />
-            2차 채점할 사진만 (아직 한 명만 매긴 것)
+            매길 사진만 (아직 한 명만 매긴 것 + 다시 매길 것)
           </label>
           {list.length > 0 && (
             <div className="ml-auto flex items-center gap-2">
@@ -137,11 +143,11 @@ export function GradeView({ photos, grades, name, onGraded }: Props) {
           <div className="flex min-h-0 flex-1 items-center justify-center rounded-lg border border-dashed border-gray-300 p-8 text-center text-gray-700">
             {sorted.length === 0
               ? '등급을 매길 사진이 없습니다. 연습용 사진과 이미 두 명이 매긴 사진은 여기서 빠집니다.'
-              : '2차 채점할 사진이 없습니다. "2차 채점할 사진만"을 끄면 매긴 등급을 고칠 수 있습니다.'}
+              : '매길 사진이 없습니다. "매길 사진만"을 끄면 매긴 등급을 고칠 수 있습니다.'}
           </div>
         )}
         <p className="text-gray-700">
-          판단이 쏠리지 않도록 번호·단계·촬영자는 가렸습니다. 다른 사람의 등급도 이 화면에는 나오지 않습니다.
+          판단이 쏠리지 않도록 번호·촬영자는 가렸습니다. 다른 사람의 등급도 이 화면에는 나오지 않습니다.
         </p>
       </div>
 
@@ -168,6 +174,9 @@ export function GradeView({ photos, grades, name, onGraded }: Props) {
           </span>
         </button>
         <p className="text-gray-700">신고 필요를 먼저 켜고 등급을 누르면 둘 다 저장됩니다.</p>
+        {needsRegrade(current) && (
+          <p className="rounded-md bg-amber-50 px-3 py-2 text-gray-900">옛 기준 '조금 쌓임'(5~33%)으로 매긴 사진입니다. 새 기준으로 다시 골라 주세요.</p>
+        )}
         <div className="space-y-2">
           {GRADES.map((g) => (
             <button
@@ -176,9 +185,12 @@ export function GradeView({ photos, grades, name, onGraded }: Props) {
               disabled={!photo || busy}
               className={`flex w-full items-start gap-3 rounded-lg border p-2.5 text-left disabled:opacity-50 ${current && !current.unusable && current.grade === g.value ? 'border-blue-600 bg-blue-50' : 'border-gray-300 hover:bg-gray-50'}`}
             >
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-gray-900 text-lg font-bold text-white">{g.value}</span>
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-gray-900 text-lg font-bold text-white">{g.key}</span>
               <span>
-                <span className="block font-semibold text-gray-900">{g.short}</span>
+                <span className="flex items-center gap-1.5 font-semibold text-gray-900">
+                  <span className={`h-2.5 w-2.5 rounded-full ${g.dot}`} />
+                  {g.short}
+                </span>
                 <span className="block text-gray-700">{g.desc}</span>
               </span>
             </button>
@@ -195,7 +207,7 @@ export function GradeView({ photos, grades, name, onGraded }: Props) {
             </span>
           </button>
         </div>
-        <p className="text-gray-700">키보드: 숫자 0~{MAX_GRADE}, X(판단 불가), R(신고 필요), ←·→(이동)</p>
+        <p className="text-gray-700">키보드: {GRADES.map((g) => `${g.key} ${g.short}`).join(', ')}, X(판단 불가), R(신고 필요), ←·→(이동)</p>
         {error && <p className="rounded-md bg-red-50 px-3 py-2 text-red-800">{error}</p>}
       </div>
     </div>

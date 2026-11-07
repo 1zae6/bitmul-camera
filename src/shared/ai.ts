@@ -1,6 +1,6 @@
 import { expandBox } from './box'
 import { CONFIG } from './config'
-import { GRADE_RULES, GRADES, MAX_GRADE, REPORT, UNUSABLE } from './grades'
+import { GRADE_RULES, GRADES, gradeFromPercent, gradeName, PERCENT, REPORT, UNUSABLE } from './grades'
 import { functionUrl, PUBLIC_KEY, sb } from './supabase'
 import { rowBox, type AiGradeRow, type Box, type PhotoRow } from './types'
 
@@ -8,8 +8,11 @@ import { rowBox, type AiGradeRow, type Box, type PhotoRow } from './types'
 // 기본은 Supabase 서버 함수(grade-photo)가 비밀값으로 둔 키로 대신 부른다.
 // PC 뷰어에 키를 직접 넣어 둔 경우에만 그 브라우저에서 바로 부른다.
 
-/** 등급 기준이나 지시문을 바꾸면 이 값을 올려서 결과를 구분한다 (v5: 덮개·주변 중 더 심한 쪽, 깨끗함 5% 미만 + 3분의 1씩 3단계 + 신고 표시, 주변 범위 20%) */
-export const PROMPT_VERSION = 'v5'
+/**
+ * 등급 기준이나 지시문을 바꾸면 이 값을 올려서 결과를 구분한다
+ * (v6: 3단계 괜찮음 20% 이하·쌓임·막힘 3분의 2 이상, 덮개·주변 중 더 심한 쪽, 물길을 막는 것만 셈, 신고 표시, 주변 범위 20%. AI 는 등급을 이름으로 답한다)
+ */
+export const PROMPT_VERSION = 'v6'
 
 const KEY_STORAGE = 'bitmul-camera:gemini-key'
 
@@ -41,9 +44,9 @@ const SCHEMA = {
   properties: {
     is_drain: { type: 'BOOLEAN', description: '빨간 박스 안에 빗물받이 덮개가 보이면 true' },
     unusable: { type: 'BOOLEAN', description: '흐리거나 너무 멀어서 쓰레기 양을 알 수 없으면 true' },
-    grate_percent: { type: 'INTEGER', description: '빨간 박스 안(덮개)을 쓰레기·낙엽·흙·고무판 등이 위에서 가린 비율(0~100)' },
-    around_percent: { type: 'INTEGER', description: '빨간 박스 바깥 주변을 쓰레기·낙엽·흙이 덮은 비율(0~100)' },
-    grade: { type: 'INTEGER', description: `쓰레기 등급 0~${MAX_GRADE}. 두 비율 중 큰 값으로 정한다` },
+    grate_percent: { type: 'INTEGER', description: '빨간 박스 안(덮개)을 물길을 막는 것(쓰레기·낙엽·담배꽁초·흙더미·고무판 등)이 위에서 가린 비율(0~100)' },
+    around_percent: { type: 'INTEGER', description: '빨간 박스 바깥 주변을 물길을 막는 것(쓰레기·낙엽·흙더미)이 덮은 비율(0~100)' },
+    grade: { type: 'STRING', enum: GRADES.map((g) => g.short), description: '등급. 두 비율 중 큰 값으로 정한다' },
     needs_report: { type: 'BOOLEAN', description: '덮개 아래(틈으로 보이는 안쪽)에 쓰레기가 쌓여 지자체 신고가 필요하면 true' },
     confidence: { type: 'NUMBER', description: '이 판정을 얼마나 확신하는지 0~1' },
     causes: { type: 'ARRAY', items: { type: 'STRING', enum: [...CAUSES] }, description: '쌓인 쓰레기의 종류' },
@@ -59,14 +62,14 @@ function instruction(): string {
     '너는 빗물받이 덮개와 그 주변에 쓰레기가 얼마나 쌓였는지 판정한다.',
     '사진은 빗물받이(빨간 박스)와 그 주변을 잘라 낸 것이다. 사진 전체가 사람이 보는 흰 점선 범위와 같다.',
     '등급 기준:',
-    ...GRADES.map((g) => `- ${g.value}등급(${g.short}): ${g.desc}`),
+    ...GRADES.map((g) => `- ${g.short}: ${g.desc}`),
     `- 판단 불가: ${UNUSABLE.desc}. 이때 unusable=true 로 답한다.`,
     `- 신고 필요(등급과 별개): ${REPORT.desc}. 이때 needs_report=true 로 답한다.`,
     '규칙:',
     ...GRADE_RULES.map((r) => `- ${r}`),
-    'grate_percent 는 빨간 박스 안(덮개) 면적 중 쓰레기·낙엽·흙·담배꽁초·고무판 등이 위에서 가린 비율이다. 덮개 틈으로 보이는 아래 안쪽에 쌓인 것은 넣지 않는다.',
-    'around_percent 는 빨간 박스 바깥(사진에서 빨간 박스를 뺀 나머지) 면적 중 쓰레기·낙엽·흙이 덮은 비율이다.',
-    'grade 는 grate_percent 와 around_percent 중 큰 값을 위 등급 기준의 비율에 맞춰 정한다.',
+    'grate_percent 는 빨간 박스 안(덮개) 면적 중 물길을 막는 것이 위에서 가린 비율이다. 얇은 흙먼지·얼룩·이끼는 세지 않는다. 덮개 틈으로 보이는 아래 안쪽에 쌓인 것은 넣지 않는다.',
+    'around_percent 는 빨간 박스 바깥(사진에서 빨간 박스를 뺀 나머지) 면적 중 물길을 막는 것이 덮은 비율이다. 얇은 흙먼지·모래, 얼룩, 이끼는 세지 않는다.',
+    `grade 는 grate_percent 와 around_percent 중 큰 값으로 정한다. ${PERCENT.okMax} 이하면 ${GRADES[0].short}, ${PERCENT.blockedMin} 이상이면 ${GRADES[2].short}, 그 사이는 ${GRADES[1].short}. 경계에서 애매할 때는 위 규칙을 따른다.`,
     '빨간 박스 안에 빗물받이가 없으면 is_drain=false, unusable=true 로 답한다.',
     '정해진 JSON 형식으로만 답한다.',
   ].join('\n')
@@ -79,7 +82,7 @@ export function buildParts(target: string, examples: Example[]): unknown[] {
   if (examples.length) {
     parts.push({ text: '아래는 사람이 등급을 매긴 예시 사진이다.' })
     for (const ex of examples) {
-      parts.push({ text: `예시: ${ex.grade}등급(${GRADES[ex.grade].short})` })
+      parts.push({ text: `예시: ${gradeName(ex.grade)}` })
       parts.push({ inlineData: { mimeType: 'image/jpeg', data: ex.data } })
     }
   }
@@ -244,8 +247,11 @@ function responseError(status: number, body: ErrorBody, direct: boolean): AiErro
   return new AiError(`Gemini 오류 (${status}): ${msg}`, fatal)
 }
 
-/** 저장된 AI 판정을 Gemini 가 답한 JSON 모양 그대로 다시 보여 준다 (값은 저장 전에 범위를 정리한 것) */
-export function answerJson(r: AiGradeRow): string {
+/**
+ * 저장된 AI 판정을 Gemini 가 답한 JSON 모양 그대로 다시 보여 준다 (값은 저장 전에 범위를 정리한 것).
+ * 지금 지시문(v6)부터는 등급을 이름으로 답하므로 이름으로, 옛 지시문 결과는 숫자 그대로 보여 준다
+ */
+export function answerJson(r: AiGradeRow, promptVersion?: string): string {
   const area =
     r.grate_percent != null || r.around_percent != null
       ? { grate_percent: r.grate_percent, around_percent: r.around_percent }
@@ -255,7 +261,7 @@ export function answerJson(r: AiGradeRow): string {
       is_drain: r.is_drain,
       unusable: r.unusable,
       ...area,
-      grade: r.grade,
+      grade: promptVersion === PROMPT_VERSION && r.grade !== null ? gradeName(r.grade) : r.grade,
       needs_report: r.needs_report,
       confidence: r.confidence,
       causes: r.causes,
@@ -267,27 +273,44 @@ export function answerJson(r: AiGradeRow): string {
 }
 
 /** 모델이 형식을 조금 벗어나도 저장할 수 있게 값을 정리한다 */
-function normalize(raw: Record<string, unknown>): AiResult {
+export function normalize(raw: Record<string, unknown>): AiResult {
   const isDrain = raw.is_drain !== false
   const unusable = raw.unusable === true || !isDrain
-  const gradeNum = Math.round(Number(raw.grade))
-  const grade = unusable || !Number.isFinite(gradeNum) ? null : Math.min(MAX_GRADE, Math.max(0, gradeNum))
   const pct = (v: unknown) => {
     const n = Math.round(Number(v))
     return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 0
   }
+  const grate = pct(raw.grate_percent)
+  const around = pct(raw.around_percent)
+  // 등급은 이름으로 받는다. 이름이 아니면 두 비율 중 큰 값으로 정한다
+  const named = GRADES.find((g) => String(raw.grade ?? '').includes(g.short))
+  const grade = unusable ? null : named ? named.value : gradeFromPercent(Math.max(grate, around))
   const conf = Number(raw.confidence)
   return {
     is_drain: isDrain,
-    unusable: unusable || grade === null,
-    grate_percent: pct(raw.grate_percent),
-    around_percent: pct(raw.around_percent),
+    unusable,
+    grate_percent: grate,
+    around_percent: around,
     grade,
     needs_report: raw.needs_report === true,
     confidence: Number.isFinite(conf) ? Math.min(1, Math.max(0, conf)) : 0,
     causes: Array.isArray(raw.causes) ? raw.causes.map(String).slice(0, 7) : [],
     reason: typeof raw.reason === 'string' ? raw.reason.slice(0, 300) : '',
   }
+}
+
+/**
+ * AI 답의 등급을 지금 기준 값으로. 지금 지시문으로 돌린 결과는 AI 가 고른 등급 그대로 쓰고,
+ * 옛 지시문 결과는 AI 가 잰 덮개·주변 비율 중 큰 값으로 다시 나눈다 (비율이 없는 아주 옛 결과는 저장된 등급 그대로)
+ */
+export function aiGrade(
+  r: Pick<AiGradeRow, 'grade' | 'unusable' | 'grate_percent' | 'around_percent' | 'covered_percent'>,
+  promptVersion: string | undefined,
+): number | null {
+  if (r.unusable || r.grade === null || promptVersion === PROMPT_VERSION) return r.grade
+  const p =
+    r.grate_percent != null || r.around_percent != null ? Math.max(r.grate_percent ?? 0, r.around_percent ?? 0) : r.covered_percent
+  return p != null ? gradeFromPercent(p) : r.grade
 }
 
 /** 폰에서 찍고 바로 채점한 결과는 모델·기준 버전마다 실행 하나에 계속 쌓는다 */

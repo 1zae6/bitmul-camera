@@ -31,6 +31,7 @@ create table if not exists public.photos (
 );
 
 -- 2. 등급 (사진 1장 × 채점자 1명 = 1줄). 판단 불가면 grade 는 비운다
+--    grade 값(기준 v6): 0 괜찮음, 2 쌓임, 3 막힘. 1 은 옛 기준 '조금 쌓임'(다시 매길 것), 4 는 옛 5단계의 맨 위(막힘으로 셈)
 create table if not exists public.grades (
   photo_id uuid not null references public.photos (id) on delete cascade,
   grader text not null,

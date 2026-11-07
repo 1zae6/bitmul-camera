@@ -1,11 +1,11 @@
 import { Fragment, useMemo, useRef, useState } from 'react'
 import { CONFIG } from '../shared/config'
-import { GRADES, gradeText } from '../shared/grades'
+import { GRADES, gradeName, gradeText, PERCENT } from '../shared/grades'
 import { sb } from '../shared/supabase'
 import { type AiGradeRow, type AiMode, type AiRunRow, type GradeRow, type PhotoRow } from '../shared/types'
 import { downloadCsv, errorText, getSignedUrl, today, toCsv, useSignedUrls, type AiData } from './data'
-import { AiError, answerJson, areaText, buildParts, callAi, loadKey, maskKey, prepareImage, PROMPT_VERSION, saveKey, toAiRow, type Example } from '../shared/ai'
-import { catOf, compare, compareReport, humanTruth, pct, type Truth } from './metrics'
+import { AiError, aiGrade, answerJson, areaText, buildParts, callAi, loadKey, maskKey, prepareImage, PROMPT_VERSION, saveKey, toAiRow, type Example } from '../shared/ai'
+import { CAT_LABEL, catOf, compare, compareReport, humanTruth, pct, type Truth } from './metrics'
 import { ConfusionTable, Stat } from './ui'
 
 type Props = {
@@ -41,7 +41,7 @@ export function AiView({ photos, grades, name, onSelect, ai }: Props) {
     [photos],
   )
   const photoById = useMemo(() => new Map(photos.map((p) => [p.id, p])), [photos])
-  const { truth, conflicted } = useMemo(() => {
+  const { truth, conflicted, pending } = useMemo(() => {
     const ids = new Set(real.map((p) => p.id))
     return humanTruth(grades.filter((g) => ids.has(g.photo_id)))
   }, [grades, real])
@@ -212,12 +212,14 @@ export function AiView({ photos, grades, name, onSelect, ai }: Props) {
     })
   }
 
-  // 결과 지표
+  // 결과 지표. 옛 지시문 실행은 AI 가 잰 비율로 지금 기준에 맞춰 다시 나눠 비교한다
+  const version = selected?.prompt_version
+  const aiCat = (r: AiGradeRow) => catOf(aiGrade(r, version), r.unusable)
   const compared = runRows.filter((r) => {
     const t = truth.get(r.photo_id)
-    return t && (!onlyAgreed || t.raters >= 2)
+    return t && (!onlyAgreed || t.raters >= 2) && aiCat(r) !== null
   })
-  const stats = compare(compared.map((r) => ({ a: truth.get(r.photo_id)!.cat, b: catOf(r.grade, r.unusable) })))
+  const stats = compare(compared.map((r) => ({ a: truth.get(r.photo_id)!.cat, b: aiCat(r)! })))
   const reportStats = compareReport(
     compared
       .filter((r) => truth.get(r.photo_id)!.report !== null)
@@ -234,7 +236,7 @@ export function AiView({ photos, grades, name, onSelect, ai }: Props) {
       const pair = raterPair(p, gradesByPhoto.get(r.photo_id) ?? [])
       return [
         r.photo_id, p?.drain_code, p?.taken_at ?? '', Boolean(p?.torch), pair.shooterText, pair.othersText, pair.agreeText,
-        t?.cat ?? '', t?.raters ?? 0, t?.report ?? '', r.grade, r.unusable, r.needs_report, r.grate_percent, r.around_percent,
+        t ? CAT_LABEL[t.cat] : '', t?.raters ?? 0, t?.report ?? '', r.unusable ? '' : gradeName(aiGrade(r, version)), r.unusable, r.needs_report, r.grate_percent, r.around_percent,
         r.covered_percent, r.confidence, (r.causes ?? []).join('|'), r.reason, r.latency_ms,
       ]
     })
@@ -242,7 +244,7 @@ export function AiView({ photos, grades, name, onSelect, ai }: Props) {
       `AI채점_${today()}_${selected.model}.csv`,
       toCsv(
         [
-          'photo_id', '빗물받이번호', '단계', '촬영시각', '손전등', '찍은사람등급', '채점자등급', '채점일치', '사람정답', '매긴사람수', '사람신고',
+          'photo_id', '빗물받이번호', '촬영시각', '손전등', '찍은사람등급', '채점자등급', '채점일치', '사람정답', '매긴사람수', '사람신고',
           'AI등급', 'AI판단불가', 'AI신고', '덮개막힘', '주변쓰레기', '쓰레기면적', '확신도', '원인', '이유', '응답ms',
         ],
         rows,
@@ -318,7 +320,7 @@ export function AiView({ photos, grades, name, onSelect, ai }: Props) {
         )}
         <p className="text-gray-700">
           키는 GitHub나 사이트 코드에 들어가지 않습니다. 무료 구간에 보낸 사진은 구글 제품 개선에 쓰일 수 있으니, 사람 얼굴·차량 번호판이 나온
-          사진은 연습용으로 바꿔 빼 주세요. 지금 기준은 {PROMPT_VERSION}(덮개·주변 중 더 심한 쪽, 깨끗함 + 3분의 1씩 3단계 + 신고 필요)입니다.
+          사진은 연습용으로 바꿔 빼 주세요. 지금 기준은 {PROMPT_VERSION}(괜찮음 {PERCENT.okMax}% 이하·쌓임·막힘 3분의 2 이상, 덮개·주변 중 더 심한 쪽, 신고 필요)입니다.
         </p>
       </section>
 
@@ -383,12 +385,13 @@ export function AiView({ photos, grades, name, onSelect, ai }: Props) {
 
         <p className="text-gray-800">
           사람 정답: 두 사람 이상 일치 {agreedCount}장 · 한 사람만 매김 {truth.size - agreedCount}장 · 사람끼리 다름 {conflicted.size}장
+          {pending.size > 0 && ` · 옛 기준이라 다시 매길 사진 ${pending.size}장`}
         </p>
         <p className="text-gray-800">
           조건에 맞는 사진 {plan.all.length}장 중 이번에 {plan.list.length}장{plan.list.length > 0 && ` · 예상 약 ${minutes}분`}
           {mode === 'few' &&
             (plan.examples.length
-              ? ` · 예시: ${plan.examples.map((e) => `${e.grade}등급 ${e.photo.drain_code}`).join(', ')}`
+              ? ` · 예시: ${plan.examples.map((e) => `${gradeName(e.grade)} ${e.photo.drain_code}`).join(', ')}`
               : ' · 예시로 쓸 사람 정답 사진이 아직 없습니다')}
         </p>
 
@@ -482,6 +485,12 @@ export function AiView({ photos, grades, name, onSelect, ai }: Props) {
               </div>
             )}
 
+            {version !== PROMPT_VERSION && (
+              <p className="rounded-lg bg-amber-50 px-3 py-2 text-gray-900">
+                옛 기준({version}) 실행입니다. AI가 잰 덮개·주변 비율로 지금 기준(괜찮음 {PERCENT.okMax}% 이하, 막힘 {PERCENT.blockedMin}% 이상)에
+                맞춰 다시 나눠 비교합니다.
+              </p>
+            )}
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
               <Stat label="AI가 매긴 사진" value={`${runRows.length}장`} hint={`사람 정답과 비교한 사진 ${stats.n}장`} />
               <Stat
@@ -489,7 +498,7 @@ export function AiView({ photos, grades, name, onSelect, ai }: Props) {
                 value={stats.n ? `${stats.agree}장 (${pct(stats.agree, stats.n)})` : '-'}
                 hint={`기획안 목표 ${Math.round(CONFIG.ai.goalAgreement * 100)}%`}
               />
-              <Stat label="±1 등급 이내" value={pct(stats.within1, stats.numeric)} hint="판단 불가 제외" />
+              <Stat label="±1단계 이내" value={pct(stats.within1, stats.numeric)} hint="판단 불가 제외. 괜찮음↔막힘으로 엇갈린 것만 빠짐" />
               <Stat label="코언 카파" value={stats.kappa === null ? '-' : stats.kappa.toFixed(2)} hint="우연히 맞을 확률을 뺀 일치도" />
               <Stat
                 label="사람이 다시 볼 사진"
@@ -510,7 +519,7 @@ export function AiView({ photos, grades, name, onSelect, ai }: Props) {
                 비교할 사람 정답이 없습니다. 등급 매기기 탭에서 사람이 먼저 매기거나, 위의 '두 사람 이상 일치한 사진만 비교'를 꺼 보세요.
               </p>
             )}
-            <AnswerTable rows={runRows} photoById={photoById} truth={truth} gradesByPhoto={gradesByPhoto} onSelect={onSelect} />
+            <AnswerTable rows={runRows} version={version} photoById={photoById} truth={truth} gradesByPhoto={gradesByPhoto} onSelect={onSelect} />
           </>
         )}
       </section>
@@ -533,7 +542,9 @@ const FILTERS: { value: Filter; label: string }[] = [
 function raterPair(photo: PhotoRow | undefined, list: GradeRow[]) {
   const shooter = photo ? list.find((g) => g.grader === photo.photographer) : undefined
   const others = list.filter((g) => g !== shooter)
-  const agree = shooter && others.length ? others.every((g) => catOf(g.grade, g.unusable) === catOf(shooter.grade, shooter.unusable)) : null
+  // 옛 기준 '조금 쌓임'이 섞여 있으면 다시 매길 때까지 일치 여부를 정하지 않는다
+  const cats = [shooter, ...others].map((g) => (g ? catOf(g.grade, g.unusable) : null))
+  const agree = shooter && others.length && cats.every((c) => c !== null) ? cats.every((c) => c === cats[0]) : null
   const reportDiff = Boolean(shooter) && others.some((g) => g.needs_report !== shooter!.needs_report)
   return {
     shooterText: shooter ? gradeText(shooter.grade, shooter.unusable, shooter.needs_report) : '-',
@@ -545,12 +556,15 @@ function raterPair(photo: PhotoRow | undefined, list: GradeRow[]) {
 
 function AnswerTable({
   rows,
+  version,
   photoById,
   truth,
   gradesByPhoto,
   onSelect,
 }: {
   rows: AiGradeRow[]
+  /** 이 실행의 지시문 버전. 옛 버전이면 AI 등급을 비율로 다시 나눈다 */
+  version: string | undefined
   photoById: Map<string, PhotoRow>
   truth: Map<string, Truth>
   gradesByPhoto: Map<string, GradeRow[]>
@@ -562,7 +576,7 @@ function AnswerTable({
   const list = rows
     .filter((r) => {
       const t = truth.get(r.photo_id)
-      if (filter === 'miss') return Boolean(t) && t!.cat !== catOf(r.grade, r.unusable)
+      if (filter === 'miss') return Boolean(t) && t!.cat !== catOf(aiGrade(r, version), r.unusable)
       if (filter === 'review') return r.unusable || (r.confidence ?? 0) < CONFIG.ai.reviewConfidence
       return true
     })
@@ -591,7 +605,7 @@ function AnswerTable({
             <thead>
               <tr className="border-b border-gray-300 text-gray-700">
                 <th className="whitespace-nowrap py-1.5 pr-2 font-medium">사진</th>
-                <th className="whitespace-nowrap py-1.5 pr-2 font-medium">번호·단계</th>
+                <th className="whitespace-nowrap py-1.5 pr-2 font-medium">번호</th>
                 <th className="whitespace-nowrap py-1.5 pr-2 font-medium">찍은 사람 등급</th>
                 <th className="whitespace-nowrap py-1.5 pr-2 font-medium">채점자 등급</th>
                 <th className="whitespace-nowrap py-1.5 pr-2 font-medium">채점 일치</th>
@@ -608,7 +622,7 @@ function AnswerTable({
               {list.map((r) => {
                 const p = photoById.get(r.photo_id)
                 const t = truth.get(r.photo_id)
-                const miss = Boolean(t) && t!.cat !== catOf(r.grade, r.unusable)
+                const miss = Boolean(t) && t!.cat !== catOf(aiGrade(r, version), r.unusable)
                 const low = r.unusable || (r.confidence ?? 0) < CONFIG.ai.reviewConfidence
                 const open = openId === r.photo_id
                 const pair = raterPair(p, gradesByPhoto.get(r.photo_id) ?? [])
@@ -632,7 +646,7 @@ function AnswerTable({
                       >
                         {pair.agreeText}
                       </td>
-                      <td className={`whitespace-nowrap py-1.5 pr-2 ${miss ? 'font-semibold text-red-700' : 'text-gray-900'}`}>{gradeText(r.grade, r.unusable)}</td>
+                      <td className={`whitespace-nowrap py-1.5 pr-2 ${miss ? 'font-semibold text-red-700' : 'text-gray-900'}`}>{gradeText(aiGrade(r, version), r.unusable)}</td>
                       <td className={`whitespace-nowrap py-1.5 pr-2 ${t && t.report !== null && t.report !== Boolean(r.needs_report) ? 'font-semibold text-red-700' : 'text-gray-800'}`}>
                         {t ? (t.report === null ? '다름' : t.report ? '신고' : '-') : '-'} / {r.needs_report ? '신고' : '-'}
                       </td>
@@ -649,7 +663,7 @@ function AnswerTable({
                     {open && (
                       <tr className="border-b border-gray-200">
                         <td colSpan={12} className="pb-2">
-                          <pre className="overflow-x-auto rounded bg-gray-50 p-2 text-xs text-gray-900">{answerJson(r)}</pre>
+                          <pre className="overflow-x-auto rounded bg-gray-50 p-2 text-xs text-gray-900">{answerJson(r, version)}</pre>
                         </td>
                       </tr>
                     )}

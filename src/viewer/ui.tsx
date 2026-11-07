@@ -1,4 +1,4 @@
-import { CATS } from './metrics'
+import { CAT_LABEL, CATS } from './metrics'
 
 export function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
@@ -23,7 +23,7 @@ export function ConfusionTable({ matrix, rowLabel, colLabel }: { matrix: number[
             <th className="border border-gray-300 bg-gray-50 px-3 py-1.5" />
             {CATS.map((c) => (
               <th key={c} className="border border-gray-300 bg-gray-50 px-3 py-1.5">
-                {c}
+                {CAT_LABEL[c]}
               </th>
             ))}
           </tr>
@@ -31,7 +31,7 @@ export function ConfusionTable({ matrix, rowLabel, colLabel }: { matrix: number[
         <tbody>
           {CATS.map((r, i) => (
             <tr key={r}>
-              <th className="border border-gray-300 bg-gray-50 px-3 py-1.5">{r}</th>
+              <th className="border border-gray-300 bg-gray-50 px-3 py-1.5">{CAT_LABEL[r]}</th>
               {CATS.map((c, j) => (
                 <td key={c} className={`border border-gray-300 px-3 py-1.5 ${i === j ? 'bg-green-50 font-semibold' : ''}`}>
                   {matrix[i][j] || ''}
@@ -41,7 +41,7 @@ export function ConfusionTable({ matrix, rowLabel, colLabel }: { matrix: number[
           ))}
         </tbody>
       </table>
-      <p className="mt-1 text-gray-700">X = 판단 불가</p>
+      <p className="mt-1 text-gray-700">옛 기준 '조금 쌓임'으로 매긴 사진은 다시 매길 때까지 표에서 빠집니다.</p>
     </div>
   )
 }

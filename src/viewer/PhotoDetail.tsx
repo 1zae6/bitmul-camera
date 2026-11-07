@@ -12,7 +12,7 @@ import {
   type PhotoRow,
 } from '../shared/types'
 import { downloadBlob, errorText, useSignedUrls } from './data'
-import { answerJson, areaText } from '../shared/ai'
+import { aiGrade, answerJson, areaText } from '../shared/ai'
 
 type Props = {
   photo: PhotoRow
@@ -33,6 +33,7 @@ export function PhotoDetail({ photo, myGrade, aiRows, runs, onClose, onUpdated, 
   const [msg, setMsg] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [showAi, setShowAi] = useState(false)
+  const versionOf = (runId: string) => runs.find((x) => x.run_id === runId)?.prompt_version
 
   const patch = { drain_code: code.trim().toUpperCase() }
   const dirty = patch.drain_code !== photo.drain_code
@@ -152,12 +153,12 @@ export function PhotoDetail({ photo, myGrade, aiRows, runs, onClose, onUpdated, 
               <div key={r.run_id} className="mt-2 space-y-1 border-t border-gray-200 pt-2">
                 <p className="text-gray-700">{runs.find((x) => x.run_id === r.run_id)?.label ?? r.run_id}</p>
                 <p className="font-semibold text-gray-900">
-                  AI {gradeText(r.grade, r.unusable, Boolean(r.needs_report))} · {areaText(r)} · 확신도 {r.confidence?.toFixed(2) ?? '-'}
+                  AI {gradeText(aiGrade(r, versionOf(r.run_id)), r.unusable, Boolean(r.needs_report))} · {areaText(r)} · 확신도 {r.confidence?.toFixed(2) ?? '-'}
                 </p>
                 {r.reason && <p className="text-gray-800">{r.reason}</p>}
                 <details>
                   <summary className="cursor-pointer text-gray-700">JSON 보기</summary>
-                  <pre className="mt-1 overflow-x-auto rounded bg-gray-50 p-2 text-xs text-gray-900">{answerJson(r)}</pre>
+                  <pre className="mt-1 overflow-x-auto rounded bg-gray-50 p-2 text-xs text-gray-900">{answerJson(r, versionOf(r.run_id))}</pre>
                 </details>
               </div>
             ))

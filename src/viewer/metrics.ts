@@ -1,15 +1,23 @@
-import { GRADES, MAX_GRADE } from '../shared/grades'
+import { currentGrade, GRADES } from '../shared/grades'
 import type { GradeRow } from '../shared/types'
 
 // 등급 비교 계산. 사람끼리 비교(일치율 탭)와 AI·사람 비교(AI 채점 탭)가 같은 계산을 쓴다.
 
-/** 등급 칸 + 판단 불가(X). 등급 수는 grades.ts 를 따른다 */
+/** 등급 칸 + 판단 불가(X). 칸 이름은 저장 값(0 괜찮음, 2 쌓임, 3 막힘). 등급 수는 grades.ts 를 따른다 */
 export const CATS: string[] = [...GRADES.map((g) => String(g.value)), 'X']
 export type Cat = string
 
-/** 판단 불가는 X. 예전 5단계 기준의 4등급은 지금 맨 위 등급으로 센다 */
-export function catOf(grade: number | null, unusable: boolean): Cat {
-  return unusable || grade === null ? 'X' : String(Math.min(grade, MAX_GRADE))
+/** 표에 보여 줄 칸 이름 */
+export const CAT_LABEL: Record<Cat, string> = { ...Object.fromEntries(GRADES.map((g) => [String(g.value), g.short])), X: '판단 불가' }
+
+/**
+ * 판단 불가는 X. 옛 5단계 기준의 4등급은 막힘으로 센다.
+ * 옛 기준 '조금 쌓임'(1)은 지금 기준으로 어느 칸인지 알 수 없어 null 이고, 다시 매길 때까지 비교에서 뺀다
+ */
+export function catOf(grade: number | null, unusable: boolean): Cat | null {
+  if (unusable || grade === null) return 'X'
+  const g = currentGrade(grade)
+  return g === null ? null : String(g)
 }
 
 export type Pair = { a: Cat; b: Cat }
@@ -17,7 +25,7 @@ export type Pair = { a: Cat; b: Cat }
 export type Comparison = {
   n: number
   agree: number
-  /** 둘 다 판단 가능한 쌍 중 등급 차이가 1 이하인 수 */
+  /** 둘 다 판단 가능한 쌍 중 단계 차이가 1 이하인 수 (괜찮음↔막힘만 빠진다) */
   within1: number
   numeric: number
   /** 코언 카파: 우연히 맞을 확률을 뺀 일치도 */
@@ -25,6 +33,9 @@ export type Comparison = {
   /** matrix[a][b] = a 쪽 등급, b 쪽 등급인 사진 수 (순서는 CATS) */
   matrix: number[][]
 }
+
+/** 등급 칸의 순서 (괜찮음 0, 쌓임 1, 막힘 2). 저장 값은 0·2·3 이라 값 차이로 재면 안 된다 */
+const step = (c: Cat) => GRADES.findIndex((g) => String(g.value) === c)
 
 export function compare(pairs: Pair[]): Comparison {
   const matrix = CATS.map(() => CATS.map(() => 0))
@@ -40,7 +51,7 @@ export function compare(pairs: Pair[]): Comparison {
     if (a === b) agree++
     if (a !== 'X' && b !== 'X') {
       numeric++
-      if (Math.abs(Number(a) - Number(b)) <= 1) within1++
+      if (Math.abs(step(a) - step(b)) <= 1) within1++
     }
   }
   const n = pairs.length
@@ -72,8 +83,9 @@ export type Truth = { cat: Cat; raters: number; report: boolean | null }
 /**
  * 사람 등급으로 사진별 '정답'을 정한다.
  * 매긴 사람이 모두 같은 등급이면 정답(raters = 매긴 사람 수), 서로 다르면 conflicted 로 빼 둔다.
+ * 옛 기준 '조금 쌓임'이 하나라도 있으면 다시 매길 때까지 pending 으로 빼 둔다.
  */
-export function humanTruth(grades: GradeRow[]): { truth: Map<string, Truth>; conflicted: Set<string> } {
+export function humanTruth(grades: GradeRow[]): { truth: Map<string, Truth>; conflicted: Set<string>; pending: Set<string> } {
   const byPhoto = new Map<string, GradeRow[]>()
   for (const g of grades) {
     const list = byPhoto.get(g.photo_id) ?? []
@@ -82,12 +94,17 @@ export function humanTruth(grades: GradeRow[]): { truth: Map<string, Truth>; con
   }
   const truth = new Map<string, Truth>()
   const conflicted = new Set<string>()
+  const pending = new Set<string>()
   for (const [id, list] of byPhoto) {
     const cats = list.map((g) => catOf(g.grade, g.unusable))
+    if (cats.some((c) => c === null)) {
+      pending.add(id)
+      continue
+    }
     const reports = list.map((g) => Boolean(g.needs_report))
     const report = reports.every((r) => r === reports[0]) ? reports[0] : null
-    if (cats.every((c) => c === cats[0])) truth.set(id, { cat: cats[0], raters: cats.length, report })
+    if (cats.every((c) => c === cats[0])) truth.set(id, { cat: cats[0]!, raters: cats.length, report })
     else conflicted.add(id)
   }
-  return { truth, conflicted }
+  return { truth, conflicted, pending }
 }
